@@ -1,0 +1,11 @@
+{
+  "name": "Vixora",
+  "description": "An AI-powered faceless video generator app and AI video companion that creates scripts, voiceovers, sources stock clips, and compiles fully synced videocards with CapCut captions.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

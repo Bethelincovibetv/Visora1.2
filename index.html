@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en" class="light-mode">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Vixora - AI-Powered Faceless Video Creator & Multi-Voice Studio</title>
+    <meta name="description" content="Vixora is the leading AI-powered faceless video creator, script genius, and multi-voice synthesis studio. Create high-retention TikToks, Shorts, and Reels instantly with custom AI voiceovers and automated stock footage syncing!">
+    <meta name="keywords" content="Vixora, AI Video Creator, Faceless Shorts Maker, YouTube AI Script Generator, Text to Speech, CapCut karaoke subtitles, Vixora voice assistant, digital video packaging">
+    <meta name="author" content="Vixora Studio">
+    <meta name="robots" content="index, follow">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Vixora - AI-Powered Faceless Video Creator & Multi-Voice Studio">
+    <meta property="og:description" content="Autopilot script drafting, natural voice overlays, high-dynamic footage syncing and auto-captions. Your digital companion for high-retention content creation.">
+    <meta property="og:image" content="https://cilkybiebptqtuhbopyz.supabase.co/storage/v1/object/public/images/default/c51236bd-d2c7-4166-a82e-f347059d7ba8.jpg">
+    <meta property="og:site_name" content="Vixora">
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:title" content="Vixora - AI-Powered Faceless Video Creator & Multi-Voice Studio">
+    <meta property="twitter:description" content="Autopilot script drafting, natural voice overlays, high-dynamic footage syncing and auto-captions. Your digital companion for high-retention content creation.">
+    <meta property="twitter:image" content="https://cilkybiebptqtuhbopyz.supabase.co/storage/v1/object/public/images/default/c51236bd-d2c7-4166-a82e-f347059d7ba8.jpg">
+
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#ff6600">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Vixora Studio">
+    <meta name="application-name" content="Vixora Studio">
+    <link rel="icon" type="image/jpeg" href="/icon-192.jpg">
+    <link rel="apple-touch-icon" href="/icon-192.jpg">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Montserrat:wght@700;800;900&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <style>
+        body { 
+          font-family: 'Inter', sans-serif; 
+          -webkit-tap-highlight-color: transparent; 
+          background-color: #f8fafc;
+          color: #0f172a;
+          overflow-x: hidden;
+          transition: background-color 0.25s ease, color 0.25s ease;
+        }
+
+        html:not(.light-mode) body {
+          background-color: #020617;
+          color: #f8fafc;
+        }
+
+        /* Light Mode Accessibility Overrides */
+        html.light-mode body {
+          background-color: #f8fafc !important;
+          color: #0f172a !important;
+        }
+
+        html.light-mode .mesh-container {
+          opacity: 0.12;
+        }
+
+        /* Convert dark card panels to clean white cards in light mode */
+        html.light-mode div[class*="bg-slate-900"],
+        html.light-mode div[class*="bg-slate-950"],
+        html.light-mode div[class*="bg-black/"],
+        html.light-mode div[class*="bg-slate-800"],
+        html.light-mode section[class*="bg-slate-900"],
+        html.light-mode section[class*="bg-slate-950"],
+        html.light-mode aside[class*="bg-slate-900"],
+        html.light-mode aside[class*="bg-slate-950"] {
+          background-color: #ffffff !important;
+          color: #0f172a !important;
+          border-color: #e2e8f0 !important;
+          box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.05), 0 2px 6px -1px rgba(15, 23, 42, 0.03);
+        }
+
+        /* Sub-panels and nested containers in light mode */
+        html.light-mode div[class*="bg-white/5"],
+        html.light-mode div[class*="bg-white/10"],
+        html.light-mode div[class*="bg-white/15"],
+        html.light-mode div[class*="bg-white/20"] {
+          background-color: #f1f5f9 !important;
+          color: #0f172a !important;
+          border-color: #cbd5e1 !important;
+        }
+
+        /* Universal text visibility in light mode */
+        html.light-mode h1, 
+        html.light-mode h2, 
+        html.light-mode h3, 
+        html.light-mode h4,
+        html.light-mode h5,
+        html.light-mode h6,
+        html.light-mode p,
+        html.light-mode label,
+        html.light-mode strong,
+        html.light-mode b,
+        html.light-mode li,
+        html.light-mode td,
+        html.light-mode th {
+          color: #0f172a !important;
+        }
+
+        /* All white text on cards and panels becomes crisp high-contrast black/dark-slate */
+        html.light-mode .text-white,
+        html.light-mode [class*="text-white"] {
+          color: #0f172a !important;
+        }
+
+        /* Subtitle and muted text on light mode */
+        html.light-mode .text-slate-400,
+        html.light-mode .text-slate-500,
+        html.light-mode .text-slate-300,
+        html.light-mode .text-slate-200,
+        html.light-mode [class*="text-slate-400"],
+        html.light-mode [class*="text-slate-500"],
+        html.light-mode [class*="text-slate-300"],
+        html.light-mode [class*="text-slate-200"],
+        html.light-mode [class*="text-white/60"],
+        html.light-mode [class*="text-white/70"],
+        html.light-mode [class*="text-white/80"],
+        html.light-mode [class*="text-white/90"] {
+          color: #334155 !important;
+        }
+
+        /* ICONS ON WHITE/LIGHT BACKGROUNDS: VIBRANT ROYAL PURPLE */
+        html.light-mode i,
+        html.light-mode svg {
+          color: #7c3aed; /* Vibrant royal purple for icons */
+        }
+
+        /* Specific icon brand accents */
+        html.light-mode i.text-ggd-orange,
+        html.light-mode i[class*="text-orange-"],
+        html.light-mode [class*="text-orange-"] i {
+          color: #ea580c !important;
+        }
+        html.light-mode i[class*="text-rose-"],
+        html.light-mode i[class*="text-red-"],
+        html.light-mode [class*="text-rose-"] i,
+        html.light-mode [class*="text-red-"] i {
+          color: #e11d48 !important;
+        }
+        html.light-mode i[class*="text-amber-"],
+        html.light-mode i[class*="text-yellow-"],
+        html.light-mode [class*="text-amber-"] i {
+          color: #d97706 !important;
+        }
+        html.light-mode i[class*="text-emerald-"],
+        html.light-mode i[class*="text-green-"],
+        html.light-mode [class*="text-emerald-"] i {
+          color: #059669 !important;
+        }
+        html.light-mode i[class*="text-blue-"],
+        html.light-mode i[class*="text-cyan-"],
+        html.light-mode [class*="text-blue-"] i {
+          color: #2563eb !important;
+        }
+        html.light-mode i[class*="text-purple-"],
+        html.light-mode i[class*="text-violet-"],
+        html.light-mode [class*="text-purple-"] i {
+          color: #7c3aed !important;
+        }
+
+        /* Borders in light mode */
+        html.light-mode [class*="border-white/5"],
+        html.light-mode [class*="border-white/10"],
+        html.light-mode [class*="border-white/15"],
+        html.light-mode [class*="border-white/20"],
+        html.light-mode [class*="border-slate-800"],
+        html.light-mode [class*="border-slate-900"] {
+          border-color: #e2e8f0 !important;
+        }
+
+        /* PRESERVE CRISP WHITE TEXT AND ICONS INSIDE SOLID COLORFUL BUTTONS, 3D BUTTONS, BADGES, AND VIDEO OVERLAYS */
+        html.light-mode .btn-3d,
+        html.light-mode .btn-3d *,
+        html.light-mode [class*="btn-3d-"],
+        html.light-mode [class*="btn-3d-"] *,
+        html.light-mode button[class*="bg-ggd-orange"],
+        html.light-mode button[class*="bg-ggd-orange"] *,
+        html.light-mode button[class*="bg-rose-"],
+        html.light-mode button[class*="bg-rose-"] *,
+        html.light-mode button[class*="bg-red-"],
+        html.light-mode button[class*="bg-red-"] *,
+        html.light-mode button[class*="bg-purple-"],
+        html.light-mode button[class*="bg-purple-"] *,
+        html.light-mode button[class*="bg-blue-"],
+        html.light-mode button[class*="bg-blue-"] *,
+        html.light-mode button[class*="bg-emerald-"],
+        html.light-mode button[class*="bg-emerald-"] *,
+        html.light-mode button[class*="bg-amber-"],
+        html.light-mode button[class*="bg-amber-"] *,
+        html.light-mode button[class*="bg-orange-"],
+        html.light-mode button[class*="bg-orange-"] *,
+        html.light-mode button[class*="bg-gradient-to-r"],
+        html.light-mode button[class*="bg-gradient-to-r"] *,
+        html.light-mode a[class*="bg-emerald-"],
+        html.light-mode a[class*="bg-emerald-"] *,
+        html.light-mode a[class*="bg-ggd-orange"],
+        html.light-mode a[class*="bg-ggd-orange"] *,
+        html.light-mode a[class*="bg-purple-"],
+        html.light-mode a[class*="bg-purple-"] *,
+        html.light-mode .bg-ggd-orange,
+        html.light-mode .bg-ggd-orange *,
+        html.light-mode span[class*="bg-rose-500"],
+        html.light-mode span[class*="bg-rose-500"] *,
+        html.light-mode span[class*="bg-orange-500"],
+        html.light-mode span[class*="bg-orange-500"] *,
+        html.light-mode span[class*="bg-purple-600"],
+        html.light-mode span[class*="bg-purple-600"] *,
+        html.light-mode span[class*="bg-emerald-600"],
+        html.light-mode span[class*="bg-emerald-600"] *,
+        html.light-mode span[class*="bg-blue-600"],
+        html.light-mode span[class*="bg-blue-600"] *,
+        html.light-mode .video-player-container,
+        html.light-mode .video-player-container *,
+        html.light-mode video,
+        html.light-mode canvas {
+          color: #ffffff !important;
+        }
+
+        /* Invert specific video canvas control text back to clear view if on canvas */
+        html.light-mode canvas {
+          color: initial;
+        }
+
+        /* Light mode input fields, textareas & dropdowns */
+        html.light-mode input:not([type="checkbox"]):not([type="radio"]), 
+        html.light-mode textarea, 
+        html.light-mode select {
+          background-color: #ffffff !important;
+          color: #0f172a !important;
+          border-color: #cbd5e1 !important;
+          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        }
+
+        html.light-mode input::placeholder, 
+        html.light-mode textarea::placeholder {
+          color: #64748b !important;
+          opacity: 1;
+        }
+
+        /* Code and Pre blocks */
+        html.light-mode pre,
+        html.light-mode code {
+          background-color: #f1f5f9 !important;
+          color: #0f172a !important;
+          border-color: #cbd5e1 !important;
+        }
+
+        /* Navbar & Bottom Bar Light Mode */
+        html.light-mode nav.fixed,
+        html.light-mode header {
+          background-color: rgba(255, 255, 255, 0.95) !important;
+          border-color: #cbd5e1 !important;
+          box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.08);
+        }
+
+        html.light-mode nav.fixed button span {
+          color: #64748b !important;
+        }
+
+        html.light-mode nav.fixed button.text-ggd-orange span {
+          color: #ea580c !important;
+        }
+
+        html.light-mode nav.fixed button.text-purple-400 span {
+          color: #9333ea !important;
+        }
+
+        html.light-mode nav.fixed button.text-orange-400 span {
+          color: #ea580c !important;
+        }
+
+        html.light-mode nav.fixed button.text-blue-400 span {
+          color: #2563eb !important;
+        }
+
+        html.light-mode nav.fixed button.text-amber-400 span {
+          color: #d97706 !important;
+        }
+
+        html.light-mode nav.fixed button.text-emerald-400 span {
+          color: #059669 !important;
+        }
+
+        /* Tactile Colorful 3D Buttons */
+        .btn-3d {
+          position: relative;
+          transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+          transform: translateY(0);
+          font-weight: 800;
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
+          border-radius: 1.25rem;
+        }
+
+        .btn-3d-orange {
+          background: linear-gradient(135deg, #ff7700 0%, #ff4500 100%);
+          color: #ffffff !important;
+          border: 1px solid #ff6600;
+          box-shadow: inset 0 1.5px 0 rgba(255, 255, 255, 0.45), 0 4px 0 #b33600, 0 8px 18px rgba(255, 85, 0, 0.35);
+        }
+        .btn-3d-orange:hover {
+          background: linear-gradient(135deg, #ff8811 0%, #ff5511 100%);
+        }
+        .btn-3d-orange:active {
+          transform: translateY(3px);
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 1px 0 #b33600, 0 2px 5px rgba(255, 85, 0, 0.2);
+        }
+
+        .btn-3d-purple {
+          background: linear-gradient(135deg, #a855f7 0%, #7e22ce 100%);
+          color: #ffffff !important;
+          border: 1px solid #9333ea;
+          box-shadow: inset 0 1.5px 0 rgba(255, 255, 255, 0.45), 0 4px 0 #581c87, 0 8px 18px rgba(168, 85, 247, 0.35);
+        }
+        .btn-3d-purple:hover {
+          background: linear-gradient(135deg, #b666f8 0%, #8b2bd7 100%);
+        }
+        .btn-3d-purple:active {
+          transform: translateY(3px);
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 1px 0 #581c87, 0 2px 5px rgba(168, 85, 247, 0.2);
+        }
+
+        .btn-3d-blue {
+          background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+          color: #ffffff !important;
+          border: 1px solid #2563eb;
+          box-shadow: inset 0 1.5px 0 rgba(255, 255, 255, 0.45), 0 4px 0 #1e3a8a, 0 8px 18px rgba(59, 130, 246, 0.35);
+        }
+        .btn-3d-blue:hover {
+          background: linear-gradient(135deg, #4b92ff 0%, #255ce8 100%);
+        }
+        .btn-3d-blue:active {
+          transform: translateY(3px);
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 1px 0 #1e3a8a, 0 2px 5px rgba(59, 130, 246, 0.2);
+        }
+
+        .btn-3d-emerald {
+          background: linear-gradient(135deg, #10b981 0%, #047857 100%);
+          color: #ffffff !important;
+          border: 1px solid #059669;
+          box-shadow: inset 0 1.5px 0 rgba(255, 255, 255, 0.45), 0 4px 0 #064e3b, 0 8px 18px rgba(16, 185, 129, 0.35);
+        }
+        .btn-3d-emerald:hover {
+          background: linear-gradient(135deg, #22c55e 0%, #059669 100%);
+        }
+        .btn-3d-emerald:active {
+          transform: translateY(3px);
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 1px 0 #064e3b, 0 2px 5px rgba(16, 185, 129, 0.2);
+        }
+
+        .btn-3d-amber {
+          background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+          color: #ffffff !important;
+          border: 1px solid #eab308;
+          box-shadow: inset 0 1.5px 0 rgba(255, 255, 255, 0.45), 0 4px 0 #78350f, 0 8px 18px rgba(245, 158, 11, 0.35);
+        }
+        .btn-3d-amber:hover {
+          background: linear-gradient(135deg, #fbbf24 0%, #e5880a 100%);
+        }
+        .btn-3d-amber:active {
+          transform: translateY(3px);
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 1px 0 #78350f, 0 2px 5px rgba(245, 158, 11, 0.2);
+        }
+
+        /* High Contrast Accessibility Mode */
+        html.high-contrast body {
+          filter: contrast(125%);
+        }
+
+        /* Accessibility Large Text */
+        html.accessibility-large-text {
+          font-size: 112.5%;
+        }
+
+        .glass-card { 
+          background: rgba(15, 23, 42, 0.6); 
+          backdrop-filter: blur(20px); 
+          border: 1px solid rgba(255, 255, 255, 0.1); 
+        }
+
+        html.light-mode .glass-card {
+          background: rgba(255, 255, 255, 0.9);
+          border: 1px solid rgba(203, 213, 225, 0.8);
+          color: #0f172a;
+        }
+        
+        /* Animated Mesh Background */
+        .mesh-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            overflow: hidden;
+            transition: opacity 0.3s ease;
+        }
+
+        .mesh-orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.15;
+            animation: drift 20s infinite alternate ease-in-out;
+        }
+
+        .orb-1 { width: 500px; height: 500px; background: #ff6600; top: -100px; right: -100px; animation-duration: 25s; }
+        .orb-2 { width: 400px; height: 400px; background: #3b82f6; bottom: -50px; left: -50px; animation-duration: 30s; animation-delay: -5s; }
+        .orb-3 { width: 300px; height: 300px; background: #8b5cf6; top: 40%; left: 10%; animation-duration: 22s; }
+
+        @keyframes drift {
+            0% { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(120px, 60px) scale(1.15); }
+        }
+
+        .text-glow {
+            text-shadow: 0 0 25px rgba(255, 102, 0, 0.5);
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-rise { animation: fadeInUp 0.8s ease-out forwards; }
+
+        .bg-ggd-orange { background-color: #ff6600; }
+        .text-ggd-orange { color: #ff6600; }
+        .border-ggd-orange { border-color: #ff6600; }
+    </style>
+</head>
+<body>
+    <div class="mesh-container">
+        <div class="mesh-orb orb-1"></div>
+        <div class="mesh-orb orb-2"></div>
+        <div class="mesh-orb orb-3"></div>
+    </div>
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+</body>
+</html>
