@@ -664,6 +664,51 @@ Return JSON in this EXACT schema:
     }
   };
 
+  app.post('/api/public/v1/audio/tts', handleAudioTTS);
+  app.post('/api/audio/tts', handleAudioTTS);
+  app.post('/audio/tts', handleAudioTTS);
+
+  // ==========================================================================
+  // UNIVERSAL SERVER-SIDE GEMINI API GENERATION PROXY ENDPOINT
+  // ==========================================================================
+  const handleGeminiGenerate = async (req: express.Request, res: express.Response) => {
+    try {
+      const { model = 'gemini-2.5-flash', contents, config } = req.body || {};
+      if (!contents) {
+        return res.status(400).json({ ok: false, error: 'Field "contents" is required for Gemini generation' });
+      }
+      const ai = getGemini();
+      const response = await ai.models.generateContent({
+        model,
+        contents,
+        config
+      });
+      return res.json({
+        ok: true,
+        text: response.text || '',
+        candidates: response.candidates || []
+      });
+    } catch (err: any) {
+      console.error('[API /gemini/generate Error]:', err);
+      return res.status(500).json({
+        ok: false,
+        error: err?.message || 'Server-side Gemini generation failed'
+      });
+    }
+  };
+
+  app.post('/api/gemini/generate', handleGeminiGenerate);
+  app.post('/api/public/v1/gemini/generate', handleGeminiGenerate);
+  app.post('/gemini/generate', handleGeminiGenerate);
+    } catch (err: any) {
+      console.error('[Audio TTS General Error]:', err);
+      return res.status(500).json({
+        ok: false,
+        error: err?.message || 'Voiceover synthesis failed'
+      });
+    }
+  };
+
   app.post('/api/fish-audio/tts', handleAudioTTS);
   app.post('/api/public/v1/audio/tts', handleAudioTTS);
   app.post('/api/audio/tts', handleAudioTTS);

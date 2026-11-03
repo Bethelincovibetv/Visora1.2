@@ -5,11 +5,8 @@ export interface VixoraNavbarProps {
   themeMode: 'light' | 'dark';
   onToggleTheme: () => void;
   onOpenAccessibility: () => void;
-  onOpenProjects: () => void;
   onOpenGlobalApi: () => void;
   onOpenExportModal: () => void;
-  projectCount: number;
-  activeProjectTitle?: string;
   isLiveActive?: boolean;
 }
 
@@ -32,11 +29,8 @@ export const VixoraNavbar: React.FC<VixoraNavbarProps> = ({
   themeMode,
   onToggleTheme,
   onOpenAccessibility,
-  onOpenProjects,
   onOpenGlobalApi,
   onOpenExportModal,
-  projectCount,
-  activeProjectTitle,
   isLiveActive = false,
 }) => {
   const location = useLocation();
@@ -97,7 +91,7 @@ export const VixoraNavbar: React.FC<VixoraNavbarProps> = ({
                   )}
                 </div>
                 <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest truncate max-w-[120px]">
-                  {activeProjectTitle || 'Studio Workspace'}
+                  Studio Workspace
                 </p>
               </div>
             </NavLink>
@@ -113,24 +107,6 @@ export const VixoraNavbar: React.FC<VixoraNavbarProps> = ({
 
           {/* RIGHT ACTION BUTTONS */}
           <div className="flex items-center gap-1.5 shrink-0">
-            {/* PROJECTS DRAWER BUTTON */}
-            <button
-              onClick={onOpenProjects}
-              title="Open Creation Projects"
-              className={`px-2.5 py-1.5 rounded-xl border text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer ${
-                themeMode === 'light'
-                  ? 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
-                  : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
-              }`}
-            >
-              <i className="fa-solid fa-folder-open text-amber-400 text-xs"></i>
-              <span className="hidden md:inline">Projects</span>
-              {projectCount > 0 && (
-                <span className="px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[8px] font-mono font-bold">
-                  {projectCount}
-                </span>
-              )}
-            </button>
 
             {/* DEV API MODAL QUICK ACCESS */}
             <button
