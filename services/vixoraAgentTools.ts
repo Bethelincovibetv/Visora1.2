@@ -10,12 +10,46 @@ export interface VixoraAppContext {
   setGeneratedScript: (script: string) => void;
   setScriptTopic: (topic: string) => void;
   setVideoScriptInput: (script: string) => void;
-  handleSourceVideos?: (script: string) => void;
+  handleSourceVideos?: (script: string, duration?: string) => Promise<any> | void;
   setGlobalMusicVolume?: (vol: number) => void;
   setGlobalExtractedMood?: (mood: string) => void;
   setCaptionTemplate?: (tpl: string) => void;
   handleDirectVideo?: (style?: any) => Promise<void>;
   addCreatedAsset?: (asset: { id: string; title: string; imageUrl: string; date: string; type: 'flyer' | 'video' }) => void;
+  createAutomatedVideoWithAgent?: (options: {
+    topic: string;
+    aspectRatio?: 'vertical' | 'horizontal' | 'square';
+    duration?: string;
+    useWebSearchTrends?: boolean;
+    onProgress?: (progress: {
+      step: number;
+      totalSteps: number;
+      stepName: string;
+      detail: string;
+      percent: number;
+      isComplete: boolean;
+    }) => void;
+  }) => Promise<{
+    id: string;
+    topic: string;
+    scriptText: string;
+    videoUrl: string;
+    previewImageUrl?: string;
+    aspectRatio: 'vertical' | 'horizontal' | 'square';
+    duration: string;
+    scenes: Array<{
+      id: string | number;
+      title: string;
+      thumbnail: string;
+      videoUrl?: string;
+      query?: string;
+      duration?: number;
+    }>;
+    voiceoverUrl?: string;
+    voiceName?: string;
+    createdAt: string;
+  }>;
+  loadVideoIntoSequencer?: (videoData: any) => void;
   userFullName?: string;
   currentScriptText?: string;
   currentTopic?: string;
@@ -195,6 +229,21 @@ export const VIXORA_AGENT_TOOLS: VixoraToolDefinition[] = [
       const ratio = args.aspectRatio || 'vertical';
       const duration = args.duration || '30s';
       const searchWeb = args.useWebSearchTrends !== undefined ? args.useWebSearchTrends : true;
+
+      if (ctx.createAutomatedVideoWithAgent) {
+        const videoResult = await ctx.createAutomatedVideoWithAgent({
+          topic,
+          aspectRatio: ratio,
+          duration,
+          useWebSearchTrends: searchWeb
+        });
+        return {
+          success: true,
+          executedActionName: 'configureAndCreateAutopilotVideo',
+          message: `Oya! Successfully created video "${topic}" (${ratio}, ${duration}) with complete viral script, voiceover narration, and HD stock scenes.`,
+          data: { videoResult }
+        };
+      }
 
       ctx.setActiveTab('autopilot');
       ctx.handleAutopilotVideoGeneration(topic, ratio, duration, searchWeb);

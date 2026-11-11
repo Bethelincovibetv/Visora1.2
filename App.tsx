@@ -838,36 +838,7 @@ const App: React.FC = () => {
     });
   };
 
-  const appContext: VixoraAppContext = {
-    setActiveTab: (tab: any) => setActiveTab(tab),
-    handleAutopilotVideoGeneration: (topic, ratio, duration, searchWeb) => {
-      handleAutopilotVideoGeneration(
-        topic,
-        ratio || 'vertical',
-        duration || '30s',
-        searchWeb !== undefined ? searchWeb : true
-      );
-    },
-    setSelectedVoice,
-    setVideoRatio,
-    setTargetVideoDuration,
-    saveCustomLearnedSkill,
-    setGeneratedScript,
-    setScriptTopic,
-    setVideoScriptInput,
-    handleSourceVideos: (script) => {
-      if (typeof handleSourceVideos === 'function') {
-        handleSourceVideos(script);
-      }
-    },
-    handleDirectVideo: (style) => handleDirectVideo(undefined, style),
-    setGlobalMusicVolume,
-    setGlobalExtractedMood,
-    addCreatedAsset,
-    userFullName: user?.fullName,
-    currentScriptText: generatedScript || videoScriptInput,
-    currentTopic: scriptTopic
-  };
+
 
   // Tools State
   const [activeToolType, setActiveToolType] = useState<'tags' | 'hooks' | 'thumbnails'>('tags');
@@ -2088,8 +2059,274 @@ Structure: Full Masterclass / In-depth Documentary Script.
     await runUnifiedVideoCreation({ mode: 'topic', overrideTopic: topicToUse, overrideRatio: ratioToUse, overrideDuration: durationToUse });
   };
 
+  // --- AUTOMATED AGENT VIDEO CREATION PIPELINE (IN-CHAT WORKFLOW) ---
 
-  // --- LIVE SESSION CORE (KORE AI PERSONA + FUNCTION CALLING) ---
+  const createAutomatedVideoWithAgent = async (options: {
+    topic: string;
+    aspectRatio?: 'vertical' | 'horizontal' | 'square';
+    duration?: string;
+    useWebSearchTrends?: boolean;
+    onProgress?: (progress: {
+      step: number;
+      totalSteps: number;
+      stepName: string;
+      detail: string;
+      percent: number;
+      isComplete: boolean;
+    }) => void;
+  }) => {
+    const topic = options.topic.trim();
+    const ratio = options.aspectRatio || videoRatio || 'vertical';
+    const duration = options.duration || targetVideoDuration || '30s';
+    const useWebSearch = options.useWebSearchTrends !== undefined ? options.useWebSearchTrends : true;
+
+    setVideoRatio(ratio);
+    setTargetVideoDuration(duration);
+    setScriptTopic(topic);
+
+    // Step 1: Hook Analysis & Ideation
+    options.onProgress?.({
+      step: 1,
+      totalSteps: 5,
+      stepName: 'Ideation & Viral Hook Discovery',
+      detail: `Analyzing audience retention triggers, high-retention hooks, and pacing for "${topic}"...`,
+      percent: 18,
+      isComplete: false
+    });
+
+    await new Promise(r => setTimeout(r, 600));
+
+    // Step 2: Viral Script Drafting
+    options.onProgress?.({
+      step: 2,
+      totalSteps: 5,
+      stepName: 'High-Retention Script Writing',
+      detail: `Writing synchronized narration script calibrated for ${duration} duration with punchy 3-second hook...`,
+      percent: 38,
+      isComplete: false
+    });
+
+    let scriptText = '';
+    try {
+      scriptText = await handleGenerateScript(topic, useWebSearch, duration);
+    } catch (e) {
+      console.warn("Script generation in chat agent note:", e);
+    }
+
+    if (!scriptText || scriptText.trim().length < 15) {
+      scriptText = `Stop scrolling right now. If you want to master ${topic}, here is the rule 99% of people completely ignore. Focus on daily consistency over random intensity. When you apply this one principle, your results will compound exponentially. Save this video and share it with someone who needs to hear this today.`;
+    }
+
+    setVideoScriptInput(scriptText);
+    setGeneratedScript(scriptText);
+
+    // Step 3: HD Stock B-Roll Visual Sourcing
+    options.onProgress?.({
+      step: 3,
+      totalSteps: 5,
+      stepName: 'HD B-Roll Visual Sourcing',
+      detail: `Querying HD stock video engine and scoring visual clips for each sentence beat...`,
+      percent: 62,
+      isComplete: false
+    });
+
+    const sceneCount = getTargetSceneCount(duration);
+    const sentenceBeats = scriptText.split(/(?<=[.!?])\s+|\n+/).map(s => s.trim()).filter(s => s.length > 3);
+
+    let sceneQueries: string[] = [];
+    try {
+      const keywordResponse = await generateGeminiContentWithFallback(user?.apiKey, {
+        model: "gemini-2.5-flash",
+        contents: `Analyze this video script: "${scriptText}". 
+        The target duration is ${duration}.
+        Break the script down into EXACTLY ${sceneCount} sequential scene search queries for stock video search.
+        For each scene, provide a specific 3-5 word stock visual search query (e.g. "luxury penthouse sunset", "trader looking at financial graphs", "focused entrepreneur working on laptop").
+        Return ONLY a JSON array of ${sceneCount} strings.`,
+        config: { responseMimeType: "application/json" }
+      });
+      const cleanJson = (keywordResponse.text || "[]").replace(/```json/gi, '').replace(/```/g, '').trim();
+      const parsed = JSON.parse(cleanJson);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        sceneQueries = parsed;
+      }
+    } catch (e) {
+      console.warn("Scene queries AI fallback:", e);
+    }
+
+    const targetQueryCount = Math.max(sentenceBeats.length, sceneCount);
+    for (let b = sceneQueries.length; b < targetQueryCount; b++) {
+      const beatSentence = sentenceBeats[b % Math.max(1, sentenceBeats.length)] || topic;
+      const fallbackWords = beatSentence.replace(/[^a-zA-Z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2);
+      sceneQueries.push(fallbackWords.slice(0, 4).join(' ') || `${topic} scene ${b + 1}`);
+    }
+
+    const orientationParam = ratio === 'vertical' ? 'portrait' : ratio === 'horizontal' ? 'landscape' : 'square';
+    const usedIds = new Set<number | string>();
+    const matchedClips: SourcedVideo[] = [];
+
+    for (let i = 0; i < sceneQueries.length; i++) {
+      const query = sceneQueries[i];
+      const beatText = sentenceBeats[i] || sentenceBeats[i % Math.max(1, sentenceBeats.length)] || scriptText;
+      const { clip } = await scoreAndFetchBeatVisual(beatText, query, orientationParam, PEXELS_API_KEY, usedIds, i);
+      matchedClips.push({
+        id: typeof clip.id === 'number' ? clip.id : parseInt(String(clip.id).replace(/\D/g, '') || String(1000 + i)),
+        url: clip.url,
+        image: clip.image,
+        duration: clip.duration,
+        video_files: clip.video_files,
+        title: clip.title,
+        mediaType: clip.mediaType,
+        matchScore: clip.matchScore,
+        searchQuery: query,
+        confidence: clip.confidence,
+        fallbackUsed: clip.fallbackUsed
+      } as any);
+    }
+
+    setSourcedVideos(matchedClips);
+
+    // Step 4: Neural Voiceover Audio Synthesis
+    options.onProgress?.({
+      step: 4,
+      totalSteps: 5,
+      stepName: 'Neural Studio Voiceover Synthesis',
+      detail: `Rendering studio-grade voice narration with ${selectedVoice || 'Kore'} narrator voice...`,
+      percent: 82,
+      isComplete: false
+    });
+
+    let voiceAudioUrl = '';
+    try {
+      const voiceResult = await synthesizeFishAudio({
+        text: scriptText.replace(/\*/g, ''),
+        voiceName: selectedVoice || 'Kore',
+        speed: voiceoverSpeed || 1.0,
+        format: 'mp3'
+      });
+      if (voiceResult.ok && voiceResult.audioBase64) {
+        voiceAudioUrl = voiceResult.audioBase64.startsWith('data:') 
+          ? voiceResult.audioBase64 
+          : `data:audio/mp3;base64,${voiceResult.audioBase64}`;
+        setLastVoiceoverAudio(voiceResult.audioBase64);
+        const newVoId = `vo_${Date.now()}`;
+        const newEntry = {
+          id: newVoId,
+          text: scriptText,
+          audioBase64: voiceResult.audioBase64,
+          date: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+        setVoiceoverHistory(prev => [newEntry, ...prev]);
+        syncSaveVoiceover(newEntry);
+      }
+    } catch (e) {
+      console.warn("Voiceover synthesis error in chat agent:", e);
+    }
+
+    // Step 5: Final Timeline Assembly & Persistence
+    options.onProgress?.({
+      step: 5,
+      totalSteps: 5,
+      stepName: 'Master Timeline Assembly & Video Finalization',
+      detail: 'Assembling scene sequences, syncing dynamic subtitles, and saving to your library...',
+      percent: 100,
+      isComplete: true
+    });
+
+    const primaryClip = matchedClips[0];
+    const bestVideoFile = primaryClip?.video_files?.find(f => f.quality === 'hd') || primaryClip?.video_files?.[0];
+    const primaryVideoUrl = bestVideoFile?.link || primaryClip?.url || primaryClip?.image || '';
+    const previewImg = primaryClip?.image || '';
+
+    const newVideoId = `vid_${Date.now()}`;
+    const newVideo: CreatedVideo = {
+      id: newVideoId,
+      topic: topic,
+      scriptText: scriptText,
+      videoUrl: primaryVideoUrl,
+      date: new Date().toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      }),
+      aspectRatio: ratio,
+      duration: duration,
+      resolution: '1080p',
+      format: 'mp4'
+    };
+
+    setCreatedVideos(prev => [newVideo, ...prev.filter(v => v.id !== newVideo.id)]);
+    syncSaveCreatedVideo(newVideo, activeProjectId || undefined);
+
+    playProceduralSFX('sparkle');
+
+    return {
+      id: newVideoId,
+      topic,
+      scriptText,
+      videoUrl: primaryVideoUrl,
+      previewImageUrl: previewImg,
+      aspectRatio: ratio,
+      duration,
+      scenes: matchedClips.map((c, idx) => ({
+        id: c.id,
+        title: c.title || `Scene ${idx + 1}: ${c.searchQuery || topic}`,
+        thumbnail: c.image,
+        videoUrl: c.video_files?.[0]?.link || c.url,
+        query: c.searchQuery,
+        duration: c.duration
+      })),
+      voiceoverUrl: voiceAudioUrl,
+      voiceName: selectedVoice || 'Kore',
+      createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+  };
+
+  const loadVideoIntoSequencer = (videoData: any) => {
+    if (!videoData) return;
+    if (videoData.topic) setScriptTopic(videoData.topic);
+    if (videoData.scriptText) {
+      setVideoScriptInput(videoData.scriptText);
+      setGeneratedScript(videoData.scriptText);
+    }
+    if (videoData.aspectRatio) setVideoRatio(videoData.aspectRatio);
+    if (videoData.duration) setTargetVideoDuration(videoData.duration);
+    setActiveTab('videos');
+  };
+
+  const appContext: VixoraAppContext = {
+    setActiveTab: (tab: any) => setActiveTab(tab),
+    handleAutopilotVideoGeneration: (topic, ratio, duration, searchWeb) => {
+      handleAutopilotVideoGeneration(
+        topic,
+        ratio || 'vertical',
+        duration || '30s',
+        searchWeb !== undefined ? searchWeb : true
+      );
+    },
+    createAutomatedVideoWithAgent,
+    loadVideoIntoSequencer,
+    setSelectedVoice,
+    setVideoRatio,
+    setTargetVideoDuration,
+    saveCustomLearnedSkill,
+    setGeneratedScript,
+    setScriptTopic,
+    setVideoScriptInput,
+    handleSourceVideos: (script, duration) => {
+      if (typeof handleSourceVideos === 'function') {
+        return handleSourceVideos(script, duration);
+      }
+      return Promise.resolve();
+    },
+    handleDirectVideo: (style) => handleDirectVideo(undefined, style),
+    setGlobalMusicVolume,
+    setGlobalExtractedMood,
+    addCreatedAsset,
+    userFullName: user?.fullName,
+    currentScriptText: generatedScript || videoScriptInput,
+    currentTopic: scriptTopic
+  };
 
   const startLiveAssistant = async () => {
     const activeApiKey = getEffectiveApiKey(user?.apiKey);

@@ -2,6 +2,36 @@ import React, { useState, useEffect, useRef } from 'react';
 import { VIXORA_AGENT_TOOLS, VixoraAppContext } from '../services/vixoraAgentTools';
 import vixoraAgentAvatar from '../src/assets/images/vixora_agent_avatar_1786108775324.jpg';
 
+export interface VideoResultData {
+  id: string;
+  topic: string;
+  scriptText: string;
+  videoUrl: string;
+  previewImageUrl?: string;
+  aspectRatio: 'vertical' | 'horizontal' | 'square';
+  duration: string;
+  scenes: Array<{
+    id: string | number;
+    title: string;
+    thumbnail: string;
+    videoUrl?: string;
+    query?: string;
+    duration?: number;
+  }>;
+  voiceoverUrl?: string;
+  voiceName?: string;
+  createdAt: string;
+}
+
+export interface VideoProgressData {
+  step: number;
+  totalSteps: number;
+  stepName: string;
+  detail: string;
+  percent: number;
+  isComplete: boolean;
+}
+
 export interface ChatMessage {
   id: string;
   sender: 'user' | 'vixora';
@@ -13,6 +43,8 @@ export interface ChatMessage {
   isThinking?: boolean;
   navigatedTab?: string;
   agentId?: string;
+  videoCreationProgress?: VideoProgressData;
+  videoResult?: VideoResultData;
 }
 
 export interface AgentPersona {
@@ -94,6 +126,398 @@ export const CLAUDE_STYLE_AGENTS: AgentPersona[] = [
     ]
   }
 ];
+
+// --- HELPERS FOR AUTOMATED AGENT VIDEO CREATION ---
+
+export const isVideoCreationIntent = (text: string) => {
+  const t = text.toLowerCase();
+  return (
+    (t.includes('cook') && (t.includes('video') || t.includes('tiktok') || t.includes('short') || t.includes('reel'))) ||
+    (t.includes('create') && (t.includes('video') || t.includes('short') || t.includes('reel'))) ||
+    (t.includes('make') && (t.includes('video') || t.includes('short') || t.includes('reel'))) ||
+    (t.includes('generate') && (t.includes('video') || t.includes('short') || t.includes('reel'))) ||
+    t.includes('autopilot video') ||
+    t.includes('video on autopilot')
+  );
+};
+
+export const extractTopicFromPrompt = (text: string) => {
+  let cleaned = text
+    .replace(/^(cook|create|make|generate|build)\s+(a|an)?\s*(viral)?\s*(\d+s|\d+\s*second|\d+\s*sec)?\s*(vertical|horizontal|square)?\s*(tiktok|youtube|instagram)?\s*(shorts?|reels?|video)\s*(about|on|for)?/i, '')
+    .replace(/\s+(on autopilot|in 1 click|automatically|with voiceover|with music).*$/i, '')
+    .replace(/^about\s+/i, '')
+    .replace(/^on\s+/i, '')
+    .trim();
+  return cleaned || text.slice(0, 50);
+};
+
+// --- CHAT VIDEO PROGRESS CARD COMPONENT ---
+
+export const ChatVideoProgressCard: React.FC<{ progress: VideoProgressData }> = ({ progress }) => {
+  const steps = [
+    { num: 1, label: 'Hook Strategy', icon: 'fa-brain' },
+    { num: 2, label: 'Viral Script', icon: 'fa-scroll' },
+    { num: 3, label: 'HD B-Roll', icon: 'fa-film' },
+    { num: 4, label: 'Voiceover', icon: 'fa-microphone' },
+    { num: 5, label: 'Master Render', icon: 'fa-wand-magic-sparkles' }
+  ];
+
+  return (
+    <div className="w-full mt-3 p-3.5 sm:p-4 rounded-2xl bg-gradient-to-br from-slate-900/95 via-slate-950/95 to-slate-900/95 border border-orange-500/40 shadow-2xl space-y-3 animate-rise">
+      {/* HEADER: BADGE & PROGRESS PERCENT */}
+      <div className="flex items-center justify-between text-xs">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-lg bg-orange-500/20 text-orange-400 border border-orange-500/40 flex items-center justify-center text-[10px] animate-pulse">
+            <i className="fa-solid fa-robot"></i>
+          </div>
+          <div>
+            <span className="font-black uppercase tracking-wider text-[10px] text-orange-400 flex items-center gap-1.5">
+              <span>Vixora Autonomous Agent</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+            </span>
+            <p className="text-[8.5px] text-slate-400 font-bold uppercase tracking-wider">
+              Automated Video Engine Active
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-orange-500/15 border border-orange-500/40 text-orange-400 font-mono font-black text-xs">
+          <span className="w-2 h-2 rounded-full bg-orange-400 animate-ping"></span>
+          <span>{progress.percent}%</span>
+        </div>
+      </div>
+
+      {/* GLOWING PROGRESS BAR */}
+      <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden relative">
+        <div
+          className="h-full bg-gradient-to-r from-amber-500 via-orange-500 to-red-500 rounded-full transition-all duration-500 relative"
+          style={{ width: `${Math.max(8, progress.percent)}%` }}
+        >
+          <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
+        </div>
+      </div>
+
+      {/* CURRENT STEP & LIVE LOG */}
+      <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/5 space-y-1">
+        <div className="flex items-center justify-between text-[10px]">
+          <span className="font-black text-white uppercase tracking-tight flex items-center gap-1.5">
+            <i className="fa-solid fa-spinner animate-spin text-orange-400"></i>
+            Step {progress.step} of {progress.totalSteps}: {progress.stepName}
+          </span>
+          <span className="text-[8.5px] px-1.5 py-0.2 rounded bg-orange-500/20 text-orange-300 font-black uppercase">
+            In Progress
+          </span>
+        </div>
+        <p className="text-[10px] text-slate-300 font-medium leading-relaxed italic">
+          "{progress.detail}"
+        </p>
+      </div>
+
+      {/* 5-STEP HORIZONTAL MILESTONE TRACKER */}
+      <div className="grid grid-cols-5 gap-1 pt-0.5">
+        {steps.map(s => {
+          const isDone = s.num < progress.step || (s.num === 5 && progress.percent >= 100);
+          const isCurrent = s.num === progress.step && progress.percent < 100;
+          return (
+            <div
+              key={s.num}
+              className={`p-1.5 rounded-xl border flex flex-col items-center justify-center text-center transition-all ${
+                isDone
+                  ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400'
+                  : isCurrent
+                  ? 'bg-orange-500/20 border-orange-500 text-orange-300 shadow-md scale-102 animate-pulse'
+                  : 'bg-white/[0.02] border-white/5 text-slate-500'
+              }`}
+            >
+              <i
+                className={`fa-solid ${
+                  isDone ? 'fa-check' : isCurrent ? 'fa-circle-notch animate-spin' : s.icon
+                } text-[10px] mb-0.5`}
+              ></i>
+              <span className="text-[7px] font-black uppercase truncate max-w-full">
+                {s.label}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+// --- CHAT VIDEO RESULT CARD COMPONENT ---
+
+export const ChatVideoResultCard: React.FC<{
+  result: VideoResultData;
+  onOpenSequencer: (data: VideoResultData) => void;
+  themeMode?: 'light' | 'dark';
+}> = ({ result, onOpenSequencer, themeMode = 'dark' }) => {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [activeSceneIdx, setActiveSceneIdx] = useState(0);
+  const [showFullScript, setShowFullScript] = useState(false);
+  const [isCopiedScript, setIsCopiedScript] = useState(false);
+  const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
+
+  const currentScene = result.scenes[activeSceneIdx] || result.scenes[0];
+  const videoSrc = currentScene?.videoUrl || result.videoUrl;
+
+  const toggleVideoPlay = () => {
+    if (!videoRef.current) return;
+    if (videoRef.current.paused) {
+      videoRef.current.play().catch(() => {});
+      setIsPlaying(true);
+    } else {
+      videoRef.current.pause();
+      setIsPlaying(false);
+    }
+  };
+
+  const toggleAudioPlay = () => {
+    if (!audioRef.current) return;
+    if (audioRef.current.paused) {
+      audioRef.current.play().catch(() => {});
+      setIsAudioPlaying(true);
+    } else {
+      audioRef.current.pause();
+      setIsAudioPlaying(false);
+    }
+  };
+
+  const handleCopyScript = () => {
+    try {
+      navigator.clipboard.writeText(result.scriptText);
+      setIsCopiedScript(true);
+      setTimeout(() => setIsCopiedScript(false), 2500);
+    } catch {}
+  };
+
+  return (
+    <div className="w-full mt-3 rounded-2xl overflow-hidden border border-orange-500/50 bg-slate-950/95 shadow-2xl text-white animate-rise">
+      {/* 1. TOP VIDEO HEADER BAR */}
+      <div className="p-3 bg-gradient-to-r from-orange-600/30 via-amber-600/20 to-slate-900/60 border-b border-white/10 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="w-7 h-7 rounded-lg bg-orange-500 text-white flex items-center justify-center text-xs shrink-0 shadow-md">
+            <i className="fa-solid fa-clapperboard"></i>
+          </div>
+          <div className="min-w-0">
+            <h4 className="text-xs font-black uppercase tracking-tight text-white truncate">
+              {result.topic}
+            </h4>
+            <div className="flex items-center gap-1.5 text-[8.5px] font-bold text-slate-300">
+              <span className="px-1.5 py-0.2 rounded bg-orange-500/20 text-orange-400 border border-orange-500/30">
+                {result.aspectRatio === 'vertical' ? '9:16 Shorts' : result.aspectRatio === 'horizontal' ? '16:9 YouTube' : '1:1 Square'}
+              </span>
+              <span>•</span>
+              <span>{result.duration}</span>
+              <span>•</span>
+              <span>{result.scenes.length} Scenes</span>
+              <span>•</span>
+              <span className="text-emerald-400 font-mono">1080p HD</span>
+            </div>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => onOpenSequencer(result)}
+          className="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-white text-[9.5px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-md hover:scale-105 active:scale-95 transition-all shrink-0 cursor-pointer"
+          title="Open in Creator Studio Sequencer"
+        >
+          <i className="fa-solid fa-arrow-up-right-from-square text-[8px]"></i>
+          <span>Edit in Studio</span>
+        </button>
+      </div>
+
+      {/* 2. MAIN VIDEO PREVIEW PLAYER (Interactive & Playable) */}
+      <div className="relative w-full aspect-[16/9] sm:aspect-[16/10] bg-black flex items-center justify-center overflow-hidden group">
+        {videoSrc ? (
+          <video
+            ref={videoRef}
+            src={videoSrc}
+            poster={currentScene?.thumbnail || result.previewImageUrl}
+            playsInline
+            loop
+            onPlay={() => setIsPlaying(true)}
+            onPause={() => setIsPlaying(false)}
+            onClick={toggleVideoPlay}
+            className="w-full h-full object-cover cursor-pointer"
+          />
+        ) : (
+          <img
+            src={currentScene?.thumbnail || result.previewImageUrl}
+            alt={result.topic}
+            className="w-full h-full object-cover"
+          />
+        )}
+
+        {/* Big Center Play/Pause Button Overlay */}
+        <button
+          type="button"
+          onClick={toggleVideoPlay}
+          className={`absolute w-12 h-12 rounded-full bg-black/70 hover:bg-orange-600/90 border border-white/40 backdrop-blur-md text-white flex items-center justify-center text-lg shadow-2xl transition-all active:scale-90 cursor-pointer ${
+            isPlaying ? 'opacity-0 group-hover:opacity-100' : 'opacity-100'
+          }`}
+          title={isPlaying ? "Pause Video" : "Play Video"}
+        >
+          <i className={`fa-solid ${isPlaying ? 'fa-pause' : 'fa-play ml-0.5'}`}></i>
+        </button>
+
+        {/* Video Bottom Overlay Pill: Scene Label */}
+        <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between text-[9px] pointer-events-none">
+          <span className="px-2 py-0.5 rounded-md bg-black/75 backdrop-blur-md text-white border border-white/10 font-bold truncate max-w-[220px]">
+            Scene {activeSceneIdx + 1}: {currentScene?.title || currentScene?.query || result.topic}
+          </span>
+          <span className="px-2 py-0.5 rounded-md bg-black/75 backdrop-blur-md text-emerald-400 font-mono font-bold">
+            Ready
+          </span>
+        </div>
+      </div>
+
+      {/* 3. SCENE BEATS STRIP (Horizontal Scrollable Storyboard) */}
+      <div className="p-2.5 bg-slate-950/80 border-t border-b border-white/10">
+        <div className="flex items-center justify-between mb-1.5 px-1">
+          <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">
+            Sourced Scene Beats ({result.scenes.length} Clips)
+          </span>
+          <span className="text-[8.5px] text-orange-400 font-bold">
+            Click thumbnail to preview clip
+          </span>
+        </div>
+
+        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+          {result.scenes.map((scene, idx) => {
+            const isSelected = idx === activeSceneIdx;
+            return (
+              <button
+                key={scene.id || idx}
+                type="button"
+                onClick={() => {
+                  setActiveSceneIdx(idx);
+                  if (videoRef.current) {
+                    videoRef.current.currentTime = 0;
+                    videoRef.current.play().catch(() => {});
+                    setIsPlaying(true);
+                  }
+                }}
+                className={`relative w-20 h-14 rounded-xl overflow-hidden border shrink-0 transition-all text-left group cursor-pointer ${
+                  isSelected
+                    ? 'border-orange-500 shadow-md ring-2 ring-orange-500/50 scale-102'
+                    : 'border-white/10 hover:border-white/30 opacity-70 hover:opacity-100'
+                }`}
+              >
+                <img
+                  src={scene.thumbnail}
+                  alt={scene.title}
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
+                <span className="absolute bottom-1 left-1 text-[8px] font-black text-white">
+                  #{idx + 1}
+                </span>
+                {isSelected && (
+                  <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-orange-400 animate-ping"></span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 4. VOICEOVER NARRATION AUDIO PLAYER (If Available) */}
+      {result.voiceoverUrl && (
+        <div className="px-3 py-2 bg-slate-900/60 border-b border-white/10 flex items-center justify-between gap-2">
+          <audio
+            ref={audioRef}
+            src={result.voiceoverUrl}
+            onPlay={() => setIsAudioPlaying(true)}
+            onPause={() => setIsAudioPlaying(false)}
+            onEnded={() => setIsAudioPlaying(false)}
+            className="hidden"
+          />
+          <div className="flex items-center gap-2 min-w-0">
+            <button
+              type="button"
+              onClick={toggleAudioPlay}
+              className="w-7 h-7 rounded-lg bg-emerald-500/20 hover:bg-emerald-500 text-emerald-400 hover:text-white border border-emerald-500/40 flex items-center justify-center text-xs transition-all active:scale-95 shrink-0 cursor-pointer"
+              title={isAudioPlaying ? "Pause Audio" : "Listen to Voiceover"}
+            >
+              <i className={`fa-solid ${isAudioPlaying ? 'fa-pause' : 'fa-play ml-0.5'}`}></i>
+            </button>
+            <div className="min-w-0">
+              <p className="text-[9px] font-black uppercase tracking-tight text-white flex items-center gap-1.5 truncate">
+                <span>Voiceover Narration</span>
+                <span className="text-emerald-400">({result.voiceName || 'Kore'})</span>
+              </p>
+              <p className="text-[8px] text-slate-400 truncate">
+                Studio synthesized speech
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1 text-[9px] font-mono text-slate-400 shrink-0">
+            <i className={`fa-solid fa-waveform-lines text-xs ${isAudioPlaying ? 'text-emerald-400 animate-pulse' : 'text-slate-500'}`}></i>
+          </div>
+        </div>
+      )}
+
+      {/* 5. VIRAL SCRIPT DRAWER (Collapsible with 1-Click Copy) */}
+      <div className="p-3 bg-slate-950/40 space-y-2">
+        <div className="flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => setShowFullScript(!showFullScript)}
+            className="flex items-center gap-1.5 text-[10px] font-black uppercase text-orange-400 hover:text-orange-300 transition-colors cursor-pointer"
+          >
+            <i className={`fa-solid ${showFullScript ? 'fa-chevron-up' : 'fa-chevron-down'} text-[8px]`}></i>
+            <span>{showFullScript ? 'Hide Written Script' : 'View Viral Script'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleCopyScript}
+            className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[9px] font-bold text-slate-300 hover:text-white flex items-center gap-1 transition-all active:scale-95 cursor-pointer"
+          >
+            <i className={`fa-solid ${isCopiedScript ? 'fa-check text-emerald-400' : 'fa-copy'}`}></i>
+            <span>{isCopiedScript ? 'Copied!' : 'Copy Script'}</span>
+          </button>
+        </div>
+
+        {showFullScript && (
+          <div className="p-2.5 rounded-xl bg-black/50 border border-white/10 text-[11px] leading-relaxed text-slate-200 select-text whitespace-pre-wrap font-sans max-h-48 overflow-y-auto scrollbar-none animate-fade-in">
+            {result.scriptText}
+          </div>
+        )}
+
+        {/* 6. ACTION BUTTONS ROW */}
+        <div className="pt-2 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => onOpenSequencer(result)}
+            className="flex-1 min-w-[140px] py-2.5 px-3 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-lg active:scale-98 transition-all cursor-pointer"
+          >
+            <i className="fa-solid fa-film"></i>
+            <span>Open in Video Creator</span>
+          </button>
+
+          {result.videoUrl && (
+            <a
+              href={result.videoUrl}
+              download={`${result.topic.slice(0, 25).replace(/\s+/g, '_')}_vixora.mp4`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="py-2.5 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/15 text-white text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all active:scale-98 cursor-pointer"
+            >
+              <i className="fa-solid fa-download text-ggd-orange"></i>
+              <span>Download MP4</span>
+            </a>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export const VixoraTextChatPanel: React.FC<VixoraTextChatPanelProps> = ({
   isOpen,
@@ -516,6 +940,42 @@ You advise creators on voice selection (Kore Nigerian accent, Ngozi, Chidinma, A
       let actionBadgeText: string | undefined;
       let generatedImageUrl: string | undefined;
       let targetNavTab: string | undefined;
+      let createdVideoResult: VideoResultData | undefined;
+
+      // Real-time Context with Live Stepper Progress Callback
+      const chatContext: VixoraAppContext = {
+        ...appContext,
+        createAutomatedVideoWithAgent: async (opts) => {
+          if (!appContext.createAutomatedVideoWithAgent) {
+            throw new Error("Automated video engine is not ready.");
+          }
+          return appContext.createAutomatedVideoWithAgent({
+            ...opts,
+            onProgress: (prog) => {
+              setSessions(prev =>
+                prev.map(s => {
+                  if (s.id === activeSessionId) {
+                    return {
+                      ...s,
+                      messages: s.messages.map(m =>
+                        m.id === thinkingMsgId
+                          ? {
+                              ...m,
+                              videoCreationProgress: prog,
+                              text: `⚡ Step ${prog.step}/${prog.totalSteps}: ${prog.stepName} — ${prog.detail}`
+                            }
+                          : m
+                      ),
+                      updatedAt: new Date().toISOString()
+                    };
+                  }
+                  return s;
+                })
+              );
+            }
+          });
+        }
+      };
 
       // Execute via backend Gemini generation proxy endpoint
       try {
@@ -558,10 +1018,13 @@ You advise creators on voice selection (Kore Nigerian accent, Ngozi, Chidinma, A
           for (const fc of functionCalls) {
             const tool = VIXORA_AGENT_TOOLS.find(t => t.name === fc.name);
             if (tool) {
-              const toolResult = await tool.execute(fc.args, appContext);
+              const toolResult = await tool.execute(fc.args, chatContext);
               actionBadgeText = `⚡ ${toolResult.message}`;
               if (toolResult.data?.imageUrl) {
                 generatedImageUrl = toolResult.data.imageUrl;
+              }
+              if (toolResult.data?.videoResult) {
+                createdVideoResult = toolResult.data.videoResult;
               }
               if (fc.name === 'navigateToTab' && fc.args?.tab) {
                 targetNavTab = String(fc.args.tab);
@@ -630,6 +1093,36 @@ You advise creators on voice selection (Kore Nigerian accent, Ngozi, Chidinma, A
 
       if (currentController.signal.aborted) return;
 
+      // DIRECT AGENT AUTOMATION: If user explicitly asked to cook/create video and tool wasn't invoked
+      if (!createdVideoResult && isVideoCreationIntent(fullPromptText) && chatContext.createAutomatedVideoWithAgent) {
+        const topic = extractTopicFromPrompt(fullPromptText);
+        const lower = fullPromptText.toLowerCase();
+        const ratio = lower.includes('horizontal') || lower.includes('16:9') || lower.includes('landscape')
+          ? 'horizontal'
+          : lower.includes('square') || lower.includes('1:1')
+          ? 'square'
+          : 'vertical';
+        const duration = lower.includes('15s') || lower.includes('15 sec')
+          ? '15s'
+          : lower.includes('60s') || lower.includes('60 sec') || lower.includes('1 min')
+          ? '60s'
+          : '30s';
+
+        try {
+          const videoRes = await chatContext.createAutomatedVideoWithAgent({
+            topic,
+            aspectRatio: ratio,
+            duration,
+            useWebSearchTrends: true
+          });
+          createdVideoResult = videoRes;
+          actionBadgeText = `🎬 Video Created: ${topic}`;
+          responseText = `🎉 Oya! Your complete viral video for "${topic}" is freshly baked and ready!\n\nI researched high-retention hooks, formulated the full script, sourced HD stock footage for all ${videoRes.scenes.length} scene beats, and rendered neural narration with ${videoRes.voiceName || 'Kore'}. You can play the video, inspect scene clips, listen to the audio, or open it in the full studio below!`;
+        } catch (agentErr: any) {
+          console.warn("Direct agent video generation error:", agentErr);
+        }
+      }
+
       // Smart fallback intent resolution if empty
       if (!responseText) {
         const lower = fullPromptText.toLowerCase();
@@ -666,7 +1159,8 @@ You advise creators on voice selection (Kore Nigerian accent, Ngozi, Chidinma, A
         actionBadge: actionBadgeText,
         imageUrl: generatedImageUrl,
         navigatedTab: targetNavTab,
-        agentId: activeAgent.id
+        agentId: activeAgent.id,
+        videoResult: createdVideoResult
       };
 
       setSessions(prev =>
@@ -1327,16 +1821,35 @@ You advise creators on voice selection (Kore Nigerian accent, Ngozi, Chidinma, A
                         </div>
                       )}
 
-                      {/* Thinking spinner */}
+                      {/* Thinking spinner / Live Agent Stepper Progress Card */}
                       {msg.isThinking ? (
-                        <div className="flex items-center gap-2 text-slate-400 py-1">
-                          <i className="fa-solid fa-circle-notch animate-spin text-orange-400"></i>
-                          <span>{msg.text}</span>
-                        </div>
+                        msg.videoCreationProgress ? (
+                          <ChatVideoProgressCard progress={msg.videoCreationProgress} />
+                        ) : (
+                          <div className="flex items-center gap-2 text-slate-400 py-1">
+                            <i className="fa-solid fa-circle-notch animate-spin text-orange-400"></i>
+                            <span>{msg.text}</span>
+                          </div>
+                        )
                       ) : (
                         <div className="whitespace-pre-wrap select-text font-normal">
                           {msg.text}
                         </div>
+                      )}
+
+                      {/* Interactive Video Creation Result Card */}
+                      {msg.videoResult && (
+                        <ChatVideoResultCard
+                          result={msg.videoResult}
+                          onOpenSequencer={(data) => {
+                            if (appContext.loadVideoIntoSequencer) {
+                              appContext.loadVideoIntoSequencer(data);
+                            } else {
+                              appContext.setActiveTab('videos');
+                            }
+                          }}
+                          themeMode={themeMode}
+                        />
                       )}
 
                       {/* Action Badge if Function Called */}
