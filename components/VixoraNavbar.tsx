@@ -14,6 +14,7 @@ export const MAIN_NAV_ITEMS = [
   { path: '/studio', label: 'Studio', icon: 'fa-microphone-lines', badge: 'Live AI', color: 'from-amber-500 to-orange-500' },
   { path: '/chat', label: 'AI Chat', icon: 'fa-comments', badge: 'Claude Agents', color: 'from-orange-500 to-amber-500' },
   { path: '/videos', label: 'Video Creator', icon: 'fa-film', badge: 'HD Sourcing', color: 'from-orange-500 to-red-500' },
+  { path: '/flyer-ad', label: 'Flyer Ad Studio', icon: 'fa-wand-magic-sparkles', badge: 'Flyer-to-Ad', color: 'from-fuchsia-500 to-pink-500' },
   { path: '/scripts', label: 'AI Scripts', icon: 'fa-scroll', badge: 'Viral SEO', color: 'from-purple-500 to-indigo-500' },
   { path: '/autopilot', label: 'Autopilot', icon: 'fa-wand-magic-sparkles', badge: '1-Click', color: 'from-rose-500 to-pink-600' },
   { path: '/voiceover', label: 'Voiceover', icon: 'fa-waveform-lines', badge: 'TTS HD', color: 'from-cyan-500 to-teal-500' },
@@ -44,6 +45,7 @@ export const VixoraNavbar: React.FC<VixoraNavbarProps> = ({
     if (path === '/studio' && (currentPath === '/' || currentPath === '/studio')) return true;
     if (path === '/chat' && (currentPath === '/chat' || currentPath === '/ai' || currentPath === '/assistant' || currentPath === '/conversation')) return true;
     if (path === '/videos' && (currentPath === '/videos' || currentPath === '/creator' || currentPath === '/video-creator')) return true;
+    if (path === '/flyer-ad' && (currentPath === '/flyer-ad' || currentPath === '/flyer' || currentPath === '/ad-studio')) return true;
     if (path === '/scripts' && (currentPath === '/scripts' || currentPath === '/script-writer' || currentPath === '/script')) return true;
     if (path === '/autopilot' && (currentPath === '/autopilot' || currentPath === '/video-autopilot')) return true;
     if (path === '/voiceover' && (currentPath === '/voiceover' || currentPath === '/voice' || currentPath === '/tts')) return true;

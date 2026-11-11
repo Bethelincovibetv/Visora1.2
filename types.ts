@@ -142,5 +142,6 @@ export interface Project {
   videoUrl?: string;
   chatHistory?: any[];
   sourcedVideos?: any[];
+  directorPlan?: any;
 }
 

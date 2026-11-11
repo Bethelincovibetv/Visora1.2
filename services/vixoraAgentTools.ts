@@ -14,6 +14,7 @@ export interface VixoraAppContext {
   setGlobalMusicVolume?: (vol: number) => void;
   setGlobalExtractedMood?: (mood: string) => void;
   setCaptionTemplate?: (tpl: string) => void;
+  handleDirectVideo?: (style?: any) => Promise<void>;
   addCreatedAsset?: (asset: { id: string; title: string; imageUrl: string; date: string; type: 'flyer' | 'video' }) => void;
   userFullName?: string;
   currentScriptText?: string;
@@ -429,6 +430,35 @@ export const VIXORA_AGENT_TOOLS: VixoraToolDefinition[] = [
         success: true,
         executedActionName: 'changeMusicSettings',
         message: 'Updated background music settings.'
+      };
+    }
+  },
+  {
+    name: 'directVideoMotionGraphics',
+    description: 'Runs or reconfigures Phase 4 AI Director to apply cinematic camera motion, 2D motion graphics, animated badges, lower-thirds, color grading, and dynamic transitions to the video.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        directorStyle: {
+          type: Type.STRING,
+          enum: ['viral_social', 'cinematic_motivational', 'commercial_brand', 'educational_explainer', 'narrative_story'],
+          description: 'The directorial editing style: "viral_social", "cinematic_motivational", "commercial_brand", "educational_explainer", or "narrative_story".'
+        }
+      }
+    },
+    execute: async (args, ctx) => {
+      if (ctx.handleDirectVideo) {
+        await ctx.handleDirectVideo(args.directorStyle);
+        return {
+          success: true,
+          executedActionName: 'directVideoMotionGraphics',
+          message: `AI Director successfully applied "${args.directorStyle || 'viral_social'}" motion graphics, camera moves, and color grading to your footage!`
+        };
+      }
+      return {
+        success: false,
+        executedActionName: 'directVideoMotionGraphics',
+        message: 'AI Director is ready once video clips are sourced.'
       };
     }
   }

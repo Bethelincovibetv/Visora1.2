@@ -15,6 +15,14 @@ import { VixoraNavbar } from './components/VixoraNavbar';
 import { DraggableChatWidget } from './components/DraggableChatWidget';
 import { VoiceSelectorField } from './components/VoiceSelectorField';
 import { VoiceSelectorModal } from './components/VoiceSelectorModal';
+import { AiDirectorConsole } from './components/AiDirectorConsole';
+import { FlyerToVideoStudio } from './components/FlyerToVideoStudio';
+import { 
+  DirectorPlan, 
+  DirectorStyle,
+  analyzeAndDirectVideo, 
+  generateHeuristicDirectorPlan 
+} from './services/aiDirectorService';
 import { VixoraAppContext } from './services/vixoraAgentTools';
 import { PRESET_MUSIC_TRACKS, VOICE_AVATAR_OPTIONS } from './constants';
 import { synthesizeFishAudio, FISH_AUDIO_VOICES } from './services/fishAudioService';
@@ -290,7 +298,7 @@ const App: React.FC = () => {
   const [user, setUser] = useState<(UserProfile & { apiKey?: string }) | null>(null);
   const [loading, setLoading] = useState(true);
   const [appError, setAppError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'studio' | 'autopilot' | 'voiceover' | 'scripts' | 'profile' | 'more' | 'videos' | 'contact' | 'tools' | 'chat' | 'developer' | 'bgmusic'>('studio');
+  const [activeTab, setActiveTab] = useState<'studio' | 'autopilot' | 'voiceover' | 'scripts' | 'profile' | 'more' | 'videos' | 'contact' | 'tools' | 'chat' | 'developer' | 'bgmusic' | 'flyer-ad'>('studio');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const [showAccessibilityModal, setShowAccessibilityModal] = useState(false);
@@ -305,6 +313,7 @@ const App: React.FC = () => {
       case 'autopilot': return '/autopilot';
       case 'voiceover': return '/voiceover';
       case 'bgmusic': return '/bgmusic';
+      case 'flyer-ad': return '/flyer-ad';
       case 'more': return '/growth';
       case 'tools': return '/tools';
       case 'developer': return '/developer';
@@ -331,6 +340,8 @@ const App: React.FC = () => {
       setActiveTab('studio');
     } else if (rawPath === '/chat' || rawPath === '/ai' || rawPath === '/assistant' || rawPath === '/conversation') {
       setActiveTab('chat');
+    } else if (rawPath === '/flyer-ad' || rawPath === '/flyer' || rawPath === '/ad-studio') {
+      setActiveTab('flyer-ad');
     } else if (rawPath === '/videos' || rawPath === '/creator' || rawPath === '/video-creator') {
       setActiveTab('videos');
     } else if (rawPath === '/scripts' || rawPath === '/script-writer' || rawPath === '/script') {
@@ -618,6 +629,8 @@ const App: React.FC = () => {
   const [isReviewingScript, setIsReviewingScript] = useState<boolean>(false);
   const [sourcedVideos, setSourcedVideos] = useState<SourcedVideo[]>([]);
   const [isSourcingVideos, setIsSourcingVideos] = useState(false);
+  const [directorPlan, setDirectorPlan] = useState<DirectorPlan | null>(null);
+  const [isDirecting, setIsDirecting] = useState<boolean>(false);
   const [videoMode, setVideoMode] = useState<'ordinary' | 'ai_packaged'>('ai_packaged');
   const [videoRatio, setVideoRatio] = useState<'vertical' | 'horizontal' | 'square'>('vertical');
   const [selectedNicheFilter, setSelectedNicheFilter] = useState<string>('all');
@@ -689,6 +702,7 @@ const App: React.FC = () => {
     if (proj.aspectRatio) setVideoRatio(proj.aspectRatio);
     if (proj.targetDuration) setTargetVideoDuration(proj.targetDuration);
     if (proj.sourcedVideos) setSourcedVideos(proj.sourcedVideos);
+    if (proj.directorPlan) setDirectorPlan(proj.directorPlan);
 
     if (proj.chatHistory) {
       try {
@@ -753,11 +767,12 @@ const App: React.FC = () => {
         aspectRatio: videoRatio || p.aspectRatio,
         targetDuration: targetVideoDuration || p.targetDuration,
         sourcedVideos: sourcedVideos.length > 0 ? sourcedVideos : p.sourcedVideos,
+        directorPlan: directorPlan || p.directorPlan,
         chatHistory: chatHist,
         updatedAt: new Date().toISOString()
       };
     }));
-  }, [activeProjectId, scriptTopic, generatedScript, videoRatio, targetVideoDuration, sourcedVideos]);
+  }, [activeProjectId, scriptTopic, generatedScript, videoRatio, targetVideoDuration, sourcedVideos, directorPlan]);
 
   // Vixora AI Learned Skills Memory State
   const [userSkills, setUserSkills] = useState<LearnedSkill[]>(() => {
@@ -845,6 +860,7 @@ const App: React.FC = () => {
         handleSourceVideos(script);
       }
     },
+    handleDirectVideo: (style) => handleDirectVideo(undefined, style),
     setGlobalMusicVolume,
     setGlobalExtractedMood,
     addCreatedAsset,
@@ -1534,6 +1550,56 @@ Structure: Full Masterclass / In-depth Documentary Script.
     }
   };
 
+  // Auto-initialize Director Plan with heuristics whenever new clips are sourced and plan is empty
+  useEffect(() => {
+    if (sourcedVideos.length > 0 && !directorPlan) {
+      const durSec = parseInt(targetVideoDuration) || 30;
+      const initialPlan = generateHeuristicDirectorPlan(
+        videoScriptInput || scriptTopic || "Video Storyboard",
+        sourcedVideos,
+        durSec,
+        'viral_social'
+      );
+      setDirectorPlan(initialPlan);
+    }
+  }, [sourcedVideos]);
+
+  const handleDirectVideo = async (overrideScript?: string, styleChoice?: DirectorStyle) => {
+    const script = (overrideScript || videoScriptInput || scriptTopic || "High quality video").trim();
+    if (!sourcedVideos || sourcedVideos.length === 0) {
+      setAppError("Please source video clips first before running the AI Director.");
+      return;
+    }
+
+    setIsDirecting(true);
+    const durSec = parseInt(targetVideoDuration) || 30;
+    const styleToUse = styleChoice || directorPlan?.detectedStyle || 'viral_social';
+
+    try {
+      const activeApiKey = getEffectiveApiKey(user?.apiKey);
+      const plan = await analyzeAndDirectVideo(
+        script,
+        sourcedVideos,
+        durSec,
+        styleToUse,
+        activeApiKey
+      );
+      setDirectorPlan(plan);
+      playProceduralSFX('sparkle');
+    } catch (dirErr) {
+      console.warn("AI Director generation fallback to heuristic:", dirErr);
+      const fallbackPlan = generateHeuristicDirectorPlan(
+        script,
+        sourcedVideos,
+        durSec,
+        styleToUse
+      );
+      setDirectorPlan(fallbackPlan);
+    } finally {
+      setIsDirecting(false);
+    }
+  };
+
   const downloadAllVideos = () => {
     if (sourcedVideos.length === 0) return;
     sourcedVideos.forEach((video, index) => {
@@ -1966,17 +2032,25 @@ Structure: Full Masterclass / In-depth Documentary Script.
 
       // Step 3: Stock Video Sourcing & Beat Assembly using working Manual pipeline
       setAutopilotStep(3);
-      setAutopilotProgress(70);
+      setAutopilotProgress(60);
       setAutopilotProgressMsg("Extracting visual scenes & sourcing HD stock footage clips...");
       setAutopilotLog("Querying Vixora Media HD video library for matching storyboard clips...");
 
       await handleSourceVideos(scriptText, currentDuration);
 
-      // Step 4: Subtitle Sync & Sequencer Finalization
+      // Step 4: AI Director — Intelligent Video Editing & Motion Graphics Engine
       setAutopilotStep(4);
+      setAutopilotProgress(80);
+      setAutopilotProgressMsg("AI Director analyzing footage, pacing, camera motions & motion graphics...");
+      setAutopilotLog("Directing dynamic punch-ins, 2D graphic badges, transitions, and color grade...");
+
+      await handleDirectVideo(scriptText, 'viral_social');
+
+      // Step 5: Subtitle Sync & Master Sequencer Finalization
+      setAutopilotStep(5);
       setAutopilotProgress(95);
       setAutopilotProgressMsg("Aligning CapCut-style dynamic subtitles & active word timestamps...");
-      setAutopilotLog("Building multi-track video preview sequencer...");
+      setAutopilotLog("Building multi-track video preview sequencer with directed visual effects...");
 
       await new Promise(r => setTimeout(r, 500));
 
@@ -2611,7 +2685,7 @@ Structure: Full Masterclass / In-depth Documentary Script.
   );
 
   return (
-    <div className={`w-full ${activeTab === 'chat' ? 'max-w-6xl' : 'max-w-2xl'} mx-auto min-h-screen relative flex flex-col justify-start px-2 sm:px-4 py-3 sm:py-6 transition-colors duration-300 overflow-x-hidden box-border ${themeMode === 'light' ? 'bg-slate-100 text-slate-900' : 'bg-slate-950 text-white'}`}>
+    <div className={`w-full ${(activeTab === 'chat' || activeTab === 'flyer-ad') ? 'max-w-6xl' : 'max-w-2xl'} mx-auto min-h-screen relative flex flex-col justify-start px-2 sm:px-4 py-3 sm:py-6 transition-colors duration-300 overflow-x-hidden box-border ${themeMode === 'light' ? 'bg-slate-100 text-slate-900' : 'bg-slate-950 text-white'}`}>
       
       {showAbout && (
         <div className="fixed inset-0 z-[300] bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center p-4 animate-rise">
@@ -3379,23 +3453,27 @@ Structure: Full Masterclass / In-depth Documentary Script.
                   </p>
                 </div>
 
-                {/* 4-STAGE BADGE WORKFLOW INDICATORS */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[8.5px] font-black uppercase max-w-lg mx-auto pt-1">
+                {/* 5-STAGE BADGE WORKFLOW INDICATORS */}
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-[8.5px] font-black uppercase max-w-2xl mx-auto pt-1">
                   <div className={`p-2 rounded-xl border flex items-center justify-center gap-1.5 transition-all ${autopilotProgress >= 15 ? 'bg-rose-500 text-white border-rose-400 shadow-md' : 'bg-slate-900 border-white/10 text-slate-500'}`}>
                     <i className={`fa-solid ${autopilotProgress >= 15 ? 'fa-check-circle' : 'fa-circle-notch animate-spin'}`}></i>
-                    <span>1. Config & Web</span>
+                    <span>1. Config & Script</span>
                   </div>
-                  <div className={`p-2 rounded-xl border flex items-center justify-center gap-1.5 transition-all ${autopilotProgress >= 38 ? 'bg-rose-500 text-white border-rose-400 shadow-md' : 'bg-slate-900 border-white/10 text-slate-500'}`}>
-                    <i className={`fa-solid ${autopilotProgress >= 38 ? 'fa-check-circle' : 'fa-circle-notch animate-spin'}`}></i>
-                    <span>2. AI Script</span>
+                  <div className={`p-2 rounded-xl border flex items-center justify-center gap-1.5 transition-all ${autopilotProgress >= 35 ? 'bg-rose-500 text-white border-rose-400 shadow-md' : 'bg-slate-900 border-white/10 text-slate-500'}`}>
+                    <i className={`fa-solid ${autopilotProgress >= 35 ? 'fa-check-circle' : 'fa-circle-notch animate-spin'}`}></i>
+                    <span>2. Neural Voice</span>
                   </div>
-                  <div className={`p-2 rounded-xl border flex items-center justify-center gap-1.5 transition-all ${autopilotProgress >= 62 ? 'bg-rose-500 text-white border-rose-400 shadow-md' : 'bg-slate-900 border-white/10 text-slate-500'}`}>
-                    <i className={`fa-solid ${autopilotProgress >= 62 ? 'fa-check-circle' : 'fa-circle-notch animate-spin'}`}></i>
-                    <span>3. Voice & Clips</span>
+                  <div className={`p-2 rounded-xl border flex items-center justify-center gap-1.5 transition-all ${autopilotProgress >= 55 ? 'bg-rose-500 text-white border-rose-400 shadow-md' : 'bg-slate-900 border-white/10 text-slate-500'}`}>
+                    <i className={`fa-solid ${autopilotProgress >= 55 ? 'fa-check-circle' : 'fa-circle-notch animate-spin'}`}></i>
+                    <span>3. Stock B-Roll</span>
                   </div>
-                  <div className={`p-2 rounded-xl border flex items-center justify-center gap-1.5 transition-all ${autopilotProgress >= 88 ? 'bg-rose-500 text-white border-rose-400 shadow-md' : 'bg-slate-900 border-white/10 text-slate-500'}`}>
+                  <div className={`p-2 rounded-xl border flex items-center justify-center gap-1.5 transition-all ${autopilotProgress >= 75 ? 'bg-purple-600 text-white border-purple-400 shadow-md' : 'bg-slate-900 border-white/10 text-slate-500'}`}>
+                    <i className={`fa-solid ${autopilotProgress >= 75 ? 'fa-check-circle' : 'fa-circle-notch animate-spin'}`}></i>
+                    <span>4. AI Director FX</span>
+                  </div>
+                  <div className={`p-2 rounded-xl border flex items-center justify-center gap-1.5 transition-all ${autopilotProgress >= 95 ? 'bg-emerald-600 text-white border-emerald-400 shadow-md' : 'bg-slate-900 border-white/10 text-slate-500'}`}>
                     <i className={`fa-solid ${autopilotProgress >= 100 ? 'fa-check-circle' : 'fa-circle-notch animate-spin'}`}></i>
-                    <span>4. Subtitle Sync</span>
+                    <span>5. Timeline & Export</span>
                   </div>
                 </div>
               </div>
@@ -3414,11 +3492,22 @@ Structure: Full Masterclass / In-depth Documentary Script.
                   </button>
                 </div>
 
+                {/* PHASE 4: AI DIRECTOR & MOTION GRAPHICS ENGINE CONSOLE */}
+                <AiDirectorConsole 
+                  directorPlan={directorPlan}
+                  isDirecting={isDirecting}
+                  onRunAiDirector={(styleChoice) => handleDirectVideo(undefined, styleChoice)}
+                  onUpdatePlan={(updated) => setDirectorPlan(updated)}
+                  themeMode={themeMode}
+                  sourcedClipsCount={sourcedVideos.length}
+                />
+
                 <div className="space-y-3">
                   <VideoSequencer 
                     scriptText={videoScriptInput || scriptTopic || generatedScript || "Video Timeline"} 
                     voiceoverBase64={lastVoiceoverAudio} 
                     sourcedVideos={sourcedVideos} 
+                    directorPlan={directorPlan}
                     onVideoCompiled={handleVideoCompiled}
                     aspectRatio={videoRatio}
                     onAspectRatioChange={(ratio) => setVideoRatio(ratio)}
@@ -4947,6 +5036,16 @@ Structure: Full Masterclass / In-depth Documentary Script.
             />
           </div>
         )}
+
+        {/* FLYER-TO-VIDEO AD STUDIO WORKSPACE */}
+        {activeTab === 'flyer-ad' && (
+          <div className="animate-rise w-full pb-6">
+            <FlyerToVideoStudio
+              themeMode={themeMode}
+              apiKey={user?.apiKey && !user.apiKey.includes('AIzaSyCBO1PRv5h9aQAB3rWb') ? user.apiKey : process.env.GEMINI_API_KEY || process.env.API_KEY || ''}
+            />
+          </div>
+        )}
       </main>
 
       {/* 2. VIXORA LEARNED SKILL BASE MEMORY MODAL */}
@@ -5231,13 +5330,15 @@ Structure: Full Masterclass / In-depth Documentary Script.
         </div>
       )}
 
-      {/* DRAGGABLE FLOATING VIXORA AI CHAT WIDGET */}
+      {/* DRAGGABLE FLOATING VIXORA AI CHAT WIDGET (HIDDEN PER USER REQUEST) */}
+      {/* 
       <DraggableChatWidget
         onOpenChat={() => setIsTextChatOpen(true)}
         onStartVoiceCall={startLiveAssistant}
         themeMode={themeMode}
         isLiveActive={isLiveActive}
-      />
+      /> 
+      */}
 
       {/* PERSISTENT TEXT CHAT PANEL (MODAL FLYOUT FOR NON-CHAT TABS) */}
       {activeTab !== 'chat' && (

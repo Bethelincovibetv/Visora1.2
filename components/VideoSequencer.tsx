@@ -5,6 +5,7 @@ import { PRESET_SFX_CATALOG, playProceduralSFX } from '../sfxLibrary';
 import { SFXPlacement, VideoTemplate } from '../types';
 import { syncFirebaseSaveTemplate } from '../services/firebaseService';
 import { scoreAndFetchBeatVisual, BeatAuditLog, VisualClipCandidate } from '../services/stockSourcingService';
+import { DirectorPlan, COLOR_GRADE_PRESETS, MotionGraphicsLayer } from '../services/aiDirectorService';
 
 export interface SourcedVideo {
   id: number | string;
@@ -29,6 +30,7 @@ interface VideoSequencerProps {
   scriptText: string;
   voiceoverBase64: string | null;
   sourcedVideos: SourcedVideo[];
+  directorPlan?: DirectorPlan | null;
   aspectRatio?: 'vertical' | 'horizontal' | 'square';
   onAspectRatioChange?: (ratio: 'vertical' | 'horizontal' | 'square') => void;
   onVideoCompiled?: (
@@ -120,10 +122,208 @@ export const CAPCUT_TEMPLATES = [
   { id: 'karaoke-grad', name: 'Karaoke Glow', color: '#f59e0b', font: '"Montserrat Bold", "Space Grotesk", sans-serif', description: 'Faded subtitles, flowing gold highlight' }
 ];
 
+// Helper to draw rounded rectangle on canvas
+function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  if (w < 2 * r) r = w / 2;
+  if (h < 2 * r) r = h / 2;
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+// 2D Motion Graphics & Vector Overlay Engine
+function renderMotionGraphicsOnCanvas(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  motionGraphics: MotionGraphicsLayer[],
+  sceneRelTime: number,
+  overallTime: number,
+  totalDuration: number
+) {
+  if (!motionGraphics || motionGraphics.length === 0) return;
+
+  for (const layer of motionGraphics) {
+    if (sceneRelTime < layer.enterTime || sceneRelTime > layer.exitTime) continue;
+
+    const layerElapsed = sceneRelTime - layer.enterTime;
+    const layerTotal = layer.exitTime - layer.enterTime;
+    const enterDuration = 0.28;
+    const exitDuration = 0.28;
+
+    let animAlpha = 1;
+    let animSlideY = 0;
+    let animScale = 1;
+
+    if (layerElapsed < enterDuration) {
+      const p = layerElapsed / enterDuration;
+      animAlpha = p;
+      if (layer.animation === 'slide_up') animSlideY = (1 - p) * 25;
+      else if (layer.animation === 'pop_in') animScale = 0.8 + p * 0.2;
+    } else if (layerTotal - layerElapsed < exitDuration) {
+      const p = (layerTotal - layerElapsed) / exitDuration;
+      animAlpha = p;
+      if (layer.animation === 'slide_up') animSlideY = (1 - p) * 20;
+    }
+
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, Math.min(1, animAlpha));
+
+    if (layer.type === 'progress_bar') {
+      const pTotal = Math.min(1, overallTime / Math.max(1, totalDuration));
+      const barHeight = Math.max(3, height * 0.006);
+      const grad = ctx.createLinearGradient(0, 0, width * pTotal, 0);
+      grad.addColorStop(0, '#f97316');
+      grad.addColorStop(0.5, '#eab308');
+      grad.addColorStop(1, '#ef4444');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, width * pTotal, barHeight);
+      ctx.restore();
+      continue;
+    }
+
+    if (layer.type === 'kinetic_badge') {
+      const isTopRight = layer.position === 'top_right';
+      const boxW = Math.min(width * 0.60, 240);
+      const boxH = Math.max(32, height * 0.05);
+      const x = isTopRight ? width - boxW - 20 : 20;
+      const y = 30 + animSlideY;
+
+      ctx.save();
+      ctx.translate(x + boxW / 2, y + boxH / 2);
+      ctx.scale(animScale, animScale);
+      ctx.translate(-(x + boxW / 2), -(y + boxH / 2));
+
+      ctx.fillStyle = 'rgba(2, 6, 23, 0.86)';
+      ctx.shadowColor = layer.accentColor || '#f97316';
+      ctx.shadowBlur = 14;
+      roundRect(ctx, x, y, boxW, boxH, 12);
+      ctx.fill();
+
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = layer.accentColor || '#f97316';
+      ctx.stroke();
+
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#ffffff';
+      ctx.font = `900 ${Math.max(10, Math.floor(height * 0.018))}px "Montserrat", sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(layer.title, x + boxW / 2, y + boxH / 2);
+      ctx.restore();
+    } else if (layer.type === 'lower_third') {
+      const boxW = Math.min(width * 0.88, 380);
+      const boxH = Math.max(48, height * 0.075);
+      const x = (width - boxW) / 2;
+      const y = height - boxH - (height * 0.16) + animSlideY;
+
+      ctx.save();
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.90)';
+      ctx.shadowColor = 'rgba(0,0,0,0.6)';
+      ctx.shadowBlur = 16;
+      roundRect(ctx, x, y, boxW, boxH, 14);
+      ctx.fill();
+
+      ctx.fillStyle = layer.accentColor || '#ea580c';
+      roundRect(ctx, x, y, 6, boxH, 4);
+      ctx.fill();
+
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+      roundRect(ctx, x, y, boxW, boxH, 14);
+      ctx.stroke();
+
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#ffffff';
+      ctx.font = `900 ${Math.max(11, Math.floor(height * 0.02))}px "Montserrat", sans-serif`;
+      ctx.textAlign = 'left';
+      ctx.fillText(layer.title, x + 16, y + boxH * 0.42);
+
+      if (layer.subtitle) {
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = `700 ${Math.max(9, Math.floor(height * 0.015))}px "Montserrat", sans-serif`;
+        ctx.fillText(layer.subtitle, x + 16, y + boxH * 0.76);
+      }
+      ctx.restore();
+    } else if (layer.type === 'stat_counter') {
+      const boxW = Math.min(width * 0.5, 190);
+      const boxH = Math.max(50, height * 0.08);
+      const x = width - boxW - 20;
+      const y = 30 + animSlideY;
+
+      ctx.save();
+      ctx.fillStyle = 'rgba(2, 6, 23, 0.90)';
+      ctx.shadowColor = '#10b981';
+      ctx.shadowBlur = 12;
+      roundRect(ctx, x, y, boxW, boxH, 14);
+      ctx.fill();
+
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = '#10b981';
+      ctx.stroke();
+
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#34d399';
+      ctx.font = `900 ${Math.max(15, Math.floor(height * 0.028))}px "Montserrat", sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.fillText(layer.metricValue || '100%', x + boxW / 2, y + boxH * 0.45);
+
+      ctx.fillStyle = '#cbd5e1';
+      ctx.font = `800 ${Math.max(8, Math.floor(height * 0.013))}px "Montserrat", sans-serif`;
+      ctx.fillText(layer.title, x + boxW / 2, y + boxH * 0.80);
+      ctx.restore();
+    } else if (layer.type === 'callout_card') {
+      const boxW = Math.min(width * 0.75, 300);
+      const boxH = Math.max(44, height * 0.065);
+      const x = 20;
+      const y = height * 0.22 + animSlideY;
+
+      ctx.save();
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+      ctx.shadowColor = layer.accentColor || '#f59e0b';
+      ctx.shadowBlur = 12;
+      roundRect(ctx, x, y, boxW, boxH, 12);
+      ctx.fill();
+
+      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = layer.accentColor || '#f59e0b';
+      ctx.stroke();
+
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#ffffff';
+      ctx.font = `900 ${Math.max(10, Math.floor(height * 0.017))}px "Montserrat", sans-serif`;
+      ctx.textAlign = 'left';
+      ctx.fillText(`★ ${layer.title}`, x + 14, y + (layer.subtitle ? boxH * 0.45 : boxH * 0.55));
+
+      if (layer.subtitle) {
+        ctx.fillStyle = '#cbd5e1';
+        ctx.font = `600 ${Math.max(8.5, Math.floor(height * 0.013))}px "Montserrat", sans-serif`;
+        ctx.fillText(layer.subtitle, x + 14, y + boxH * 0.8);
+      }
+      ctx.restore();
+    } else if (layer.type === 'papercut_frame') {
+      ctx.save();
+      ctx.lineWidth = Math.max(6, width * 0.018);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+      ctx.shadowColor = 'rgba(0,0,0,0.5)';
+      ctx.shadowBlur = 10;
+      ctx.strokeRect(10, 10, width - 20, height - 20);
+      ctx.restore();
+    }
+
+    ctx.restore();
+  }
+}
+
 export const VideoSequencer: React.FC<VideoSequencerProps> = ({
   scriptText,
   voiceoverBase64,
   sourcedVideos,
+  directorPlan,
   aspectRatio: controlledAspectRatio,
   onAspectRatioChange,
   onVideoCompiled,
@@ -1106,6 +1306,56 @@ export const VideoSequencer: React.FC<VideoSequencerProps> = ({
           const isVideoReady = activeSeg.mediaType !== 'photo' && video.readyState >= 1 && video.videoWidth > 0 && video.videoHeight > 0;
           const cachedImg = activeSeg.thumbnail ? thumbnailImgCacheRef.current[activeSeg.thumbnail] : null;
 
+          // Find corresponding scene instruction from Director Plan if available
+          const activeSegIndex = segments.findIndex(s => s.id === activeSeg.id);
+          const sceneInstruction = directorPlan?.scenes?.find(s => s.sceneIndex === activeSegIndex) || directorPlan?.scenes?.[activeSegIndex];
+
+          const segDuration = Math.max(0.1, activeSeg.end - activeSeg.start);
+          const p = Math.max(0, Math.min(1, (time - activeSeg.start) / segDuration));
+
+          // Compute AI Director Camera Motion
+          let zoomScale = 1.0;
+          let panX = 0;
+          let panY = 0;
+
+          if (directorPlan?.enableCameraMotion !== false && sceneInstruction) {
+            switch (sceneInstruction.cameraMotion) {
+              case 'zoom_in_slow':
+                zoomScale = 1.0 + p * 0.16;
+                break;
+              case 'zoom_out_reveal':
+                zoomScale = 1.16 - p * 0.14;
+                break;
+              case 'pan_left':
+                zoomScale = 1.08;
+                panX = (0.5 - p) * (width * 0.08);
+                break;
+              case 'pan_right':
+                zoomScale = 1.08;
+                panX = (p - 0.5) * (width * 0.08);
+                break;
+              case 'punch_in_beat': {
+                const punchP = Math.min(1, p / 0.22);
+                zoomScale = 1.0 + Math.sin(punchP * Math.PI * 0.5) * 0.18;
+                break;
+              }
+              case 'camera_shake':
+                zoomScale = 1.06;
+                panX = Math.sin(time * 26) * 4;
+                panY = Math.cos(time * 31) * 3;
+                break;
+              case 'static_focus':
+              default:
+                zoomScale = 1.0;
+                break;
+            }
+          } else if (activeSeg.mediaType === 'photo' || !isVideoReady) {
+            // Default smooth Ken Burns zoom
+            zoomScale = 1.0 + p * 0.14;
+            panX = (p - 0.5) * (width * 0.04);
+            panY = Math.sin(p * Math.PI) * (height * 0.02);
+          }
+
           if (isVideoReady) {
             try {
               // Draw active video context onto canvas preserving correct aspect ratios using cover
@@ -1126,17 +1376,17 @@ export const VideoSequencer: React.FC<VideoSequencerProps> = ({
                 sy = (vH - sHeight) / 2;
               }
 
-              ctx.drawImage(video, sx, sy, sWidth, sHeight, 0, 0, width, height);
+              ctx.save();
+              ctx.translate(width / 2 + panX, height / 2 + panY);
+              ctx.scale(zoomScale, zoomScale);
+              ctx.drawImage(video, sx, sy, sWidth, sHeight, -width / 2, -height / 2, width, height);
+              ctx.restore();
             } catch (drawErr) {
               console.error("Failed to draw video frame onto canvas:", drawErr);
               drawFallbackBackground(ctx, width, height);
             }
           } else if (cachedImg && cachedImg.complete && cachedImg.naturalWidth > 0) {
             try {
-              // Ken Burns Motion Effect for Photos or preloaded thumbnails
-              const segDuration = Math.max(0.1, activeSeg.end - activeSeg.start);
-              const p = Math.max(0, Math.min(1, (time - activeSeg.start) / segDuration));
-
               const imgW = cachedImg.naturalWidth;
               const imgH = cachedImg.naturalHeight;
               const targetRatio = width / height;
@@ -1155,14 +1405,8 @@ export const VideoSequencer: React.FC<VideoSequencerProps> = ({
               }
 
               ctx.save();
-              // Smooth Ken Burns slow zoom (1.0 -> 1.14) & cinematic camera pan
-              const zoomScale = 1.0 + p * 0.14;
-              const panX = (p - 0.5) * (width * 0.04);
-              const panY = Math.sin(p * Math.PI) * (height * 0.02);
-
               ctx.translate(width / 2 + panX, height / 2 + panY);
               ctx.scale(zoomScale, zoomScale);
-
               ctx.drawImage(cachedImg, sx, sy, sWidth, sHeight, -width / 2, -height / 2, width, height);
               ctx.restore();
             } catch (imgErr) {
@@ -1174,19 +1418,69 @@ export const VideoSequencer: React.FC<VideoSequencerProps> = ({
             drawFallbackBackground(ctx, width, height);
           }
 
-          // Standard subtle fade transition on segment borders
+          // Apply AI Director Color Grading
+          if (directorPlan?.enableColorGrade !== false) {
+            const gradeKey = sceneInstruction?.colorGrade || directorPlan?.colorGrade || 'cinematic_teal_orange';
+            const gradePreset = COLOR_GRADE_PRESETS[gradeKey];
+            if (gradePreset && gradePreset.canvasOverlay) {
+              ctx.save();
+              ctx.globalCompositeOperation = gradePreset.canvasOverlay.blendMode || 'soft-light';
+              ctx.fillStyle = gradePreset.canvasOverlay.color;
+              ctx.fillRect(0, 0, width, height);
+
+              // Subtle cinematic corner vignette
+              const vignette = ctx.createRadialGradient(width / 2, height / 2, width * 0.35, width / 2, height / 2, width * 0.85);
+              vignette.addColorStop(0, 'rgba(0, 0, 0, 0)');
+              vignette.addColorStop(1, 'rgba(0, 0, 0, 0.42)');
+              ctx.fillStyle = vignette;
+              ctx.globalCompositeOperation = 'multiply';
+              ctx.fillRect(0, 0, width, height);
+              ctx.restore();
+            }
+          }
+
+          // Apply AI Director Transitions
           const segmentElapsed = time - activeSeg.start;
           const segmentTotal = activeSeg.end - activeSeg.start;
-          const fadeLimit = 0.4; // 400ms transition
+          const transDuration = 0.38;
+          const transType = sceneInstruction?.transitionIn || 'crossfade';
 
-          if (segmentElapsed < fadeLimit) {
-            const alpha = segmentElapsed / fadeLimit;
-            ctx.fillStyle = `rgba(2, 6, 23, ${1 - alpha})`;
-            ctx.fillRect(0, 0, width, height);
-          } else if (segmentTotal - segmentElapsed < fadeLimit) {
-            const alpha = (segmentTotal - segmentElapsed) / fadeLimit;
-            ctx.fillStyle = `rgba(2, 6, 23, ${1 - alpha})`;
-            ctx.fillRect(0, 0, width, height);
+          if (directorPlan?.enableTransitions !== false && transType !== 'hard_cut') {
+            if (segmentElapsed < transDuration) {
+              const alpha = 1 - (segmentElapsed / transDuration);
+              if (transType === 'flash_zoom') {
+                ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.85})`;
+                ctx.fillRect(0, 0, width, height);
+              } else if (transType === 'light_leak') {
+                const leakGrad = ctx.createRadialGradient(width * 0.8, height * 0.2, 0, width * 0.8, height * 0.2, width * 0.9);
+                leakGrad.addColorStop(0, `rgba(251, 191, 36, ${alpha * 0.9})`);
+                leakGrad.addColorStop(0.5, `rgba(244, 63, 94, ${alpha * 0.6})`);
+                leakGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                ctx.save();
+                ctx.globalCompositeOperation = 'screen';
+                ctx.fillStyle = leakGrad;
+                ctx.fillRect(0, 0, width, height);
+                ctx.restore();
+              } else if (transType === 'glitch_cut') {
+                if (Math.random() > 0.4) {
+                  ctx.fillStyle = `rgba(6, 182, 212, ${alpha * 0.4})`;
+                  ctx.fillRect(0, Math.random() * height, width, 18);
+                }
+              } else {
+                // crossfade / whip_pan default
+                ctx.fillStyle = `rgba(2, 6, 23, ${alpha})`;
+                ctx.fillRect(0, 0, width, height);
+              }
+            } else if (segmentTotal - segmentElapsed < transDuration) {
+              const alpha = 1 - ((segmentTotal - segmentElapsed) / transDuration);
+              ctx.fillStyle = `rgba(2, 6, 23, ${alpha * 0.85})`;
+              ctx.fillRect(0, 0, width, height);
+            }
+          }
+
+          // Render 2D Motion Graphics Layers (Badges, Lower-Thirds, Infographics, Borders)
+          if (directorPlan?.enableMotionGraphics !== false && sceneInstruction?.motionGraphics && sceneInstruction.motionGraphics.length > 0) {
+            renderMotionGraphicsOnCanvas(ctx, width, height, sceneInstruction.motionGraphics, segmentElapsed, time, totalDuration);
           }
         }
       }

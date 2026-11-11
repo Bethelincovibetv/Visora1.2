@@ -59,13 +59,13 @@ export const CLAUDE_STYLE_AGENTS: AgentPersona[] = [
     id: 'vixora_coach',
     name: 'Vixora AI Assistant',
     shortName: 'Vixora',
-    title: 'Executive Producer & App Commander',
-    tagline: 'Signature Nigerian Creator AI with 100% Studio Control',
+    title: 'Executive Producer & Master App Commander',
+    tagline: 'The Ultimate All-in-One Creator AI for Scripts, Videos, TTS & Studio Control',
     icon: 'fa-bolt-lightning',
-    badge: 'OFFICIAL AI ASSISTANT',
+    badge: 'ULTIMATE MASTER AI',
     color: 'text-amber-500',
     gradient: 'from-amber-500 via-orange-500 to-red-500',
-    welcomeText: "How far my creator! 👋 I am Vixora, your Nigerian Lead AI Studio Assistant and Executive Producer. I can chat with you, give strategic advice, and control the entire Vixora Studio for you—I can cook videos on autopilot, change narrator voices, switch tabs, or write viral scripts! What are we cooking today?",
+    welcomeText: "How far my creator! 👋 I am Vixora, your Ultimate AI Studio Assistant and Executive Producer. I handle everything for you across all tools—writing viral scripts, cooking autopilot videos, sourcing HD stock clips, generating voiceovers, tuning SEO growth tags, and controlling the app in real time! What are we cooking today?",
     suggestedPrompts: [
       {
         title: 'Cook a 30s Viral Video',
@@ -74,174 +74,22 @@ export const CLAUDE_STYLE_AGENTS: AgentPersona[] = [
         icon: 'fa-wand-magic-sparkles'
       },
       {
+        title: 'Write a High-Retention Script',
+        desc: 'Psychology or motivation script',
+        prompt: 'Write a high-retention 30-second script on dark psychology body language hacks',
+        icon: 'fa-scroll'
+      },
+      {
         title: 'Set Voice to Nigerian Accent',
         desc: 'Switch to Kore Nigerian female tone',
         prompt: 'Switch narrator voice to Kore Nigerian accent and open voiceover studio',
         icon: 'fa-waveform-lines'
       },
       {
-        title: 'Create Autopilot Reel',
-        desc: 'Daily habits & discipline topic',
-        prompt: 'Create an autopilot vertical reel about 3 atomic habits that will transform your day',
-        icon: 'fa-film'
-      },
-      {
-        title: 'Open Tools Library',
-        desc: 'Access 12+ AI creator tools',
-        prompt: 'Open the Tools Library so I can generate viral tags and hooks',
-        icon: 'fa-shapes'
-      }
-    ]
-  },
-  {
-    id: 'video_director',
-    name: 'Viral Video Director',
-    shortName: 'Director',
-    title: 'Hook & Visual Scene Pacing Specialist',
-    tagline: 'Cinematic Framing, B-Roll Cues & 3-Second Hooks',
-    icon: 'fa-clapperboard',
-    badge: 'CINEMATIC DIRECTOR',
-    color: 'text-rose-500',
-    gradient: 'from-rose-500 via-pink-600 to-purple-600',
-    welcomeText: "Lights, camera, action! 🎬 I am your Viral Video Director. I specialize in cinematic scene breakdowns, B-roll queries, 3-second scroll-stopping hooks, and dynamic visual pacing that keeps viewers glued to your Reels, Shorts, and TikToks. Give me a script or idea!",
-    suggestedPrompts: [
-      {
-        title: 'Break Down into 5 B-Roll Beats',
-        desc: 'Get exact visual stock queries',
-        prompt: 'Break down a 30-second video on luxury lifestyle into 5 exact visual B-roll scene queries',
-        icon: 'fa-camera-movie'
-      },
-      {
-        title: '3 Scroll-Stopping Hooks',
-        desc: 'Instant 3-second retention openers',
-        prompt: 'Write 3 aggressive, scroll-stopping 3-second opening visual hooks for YouTube Shorts',
-        icon: 'fa-bolt'
-      },
-      {
-        title: 'Pacing for 85% Retention',
-        desc: 'Scene transition timing guidelines',
-        prompt: 'How should I pace my video transitions and text overlays to achieve 85%+ retention?',
-        icon: 'fa-stopwatch'
-      },
-      {
-        title: 'B-Roll for Storytelling',
-        desc: 'Cinematic visual atmosphere',
-        prompt: 'Suggest dramatic cinematic B-roll scenes and lighting cues for an ancient mystery documentary',
-        icon: 'fa-eye'
-      }
-    ]
-  },
-  {
-    id: 'script_master',
-    name: 'Script Master & Copywriter',
-    shortName: 'Scriptwriter',
-    title: 'High-Retention Storytelling & Scripts',
-    tagline: 'Paced YouTube Shorts, Reels & TikTok Scripts',
-    icon: 'fa-scroll',
-    badge: 'VIRAL COPYWRITER',
-    color: 'text-purple-500',
-    gradient: 'from-purple-500 via-indigo-600 to-cyan-500',
-    welcomeText: "Greetings creator! 📜 I am your Script Master and Viral Copywriter. I craft tightly paced, psychologically gripping video scripts optimized for standard speaker speed (~140 words per minute) with zero fluff or filler words. Tell me what topic to write!",
-    suggestedPrompts: [
-      {
-        title: '30s Psychology Script',
-        desc: 'Dark psychology body language hack',
-        prompt: 'Write a 30-second high-retention script on Dark Psychology body language tricks (~70 words)',
-        icon: 'fa-brain'
-      },
-      {
-        title: '15s Punchy Reel Hook',
-        desc: 'Ultra-concise high-speed script',
-        prompt: 'Write a punchy 15-second high-energy script on why 99% fail in trading (~35 words)',
-        icon: 'fa-fire'
-      },
-      {
-        title: '60s Mini-Doc Narrative',
-        desc: 'Documentary style historical script',
-        prompt: 'Draft a 60-second captivating mini-documentary script on Ancient Roman gladiators (~140 words)',
-        icon: 'fa-book-open'
-      },
-      {
-        title: 'Refine My Existing Script',
-        desc: 'Cut fluff & boost retention',
-        prompt: 'I will paste a script—cut out the fluff, improve the hook, and optimize it for speech pacing',
-        icon: 'fa-pen-fancy'
-      }
-    ]
-  },
-  {
-    id: 'growth_strategist',
-    name: 'Growth & SEO Strategist',
-    shortName: 'Growth',
-    title: 'Algorithm, CTR & Title Specialist',
-    tagline: 'YouTube & TikTok Algorithm Hacking & High-CTR Titles',
-    icon: 'fa-chart-line',
-    badge: 'ALGORITHM HACKER',
-    color: 'text-emerald-500',
-    gradient: 'from-emerald-500 via-teal-500 to-blue-600',
-    welcomeText: "Welcome to the Growth Lab! 📈 I am your Algorithm & SEO Strategist. I analyze viral distribution mechanics, craft curiosity-gap titles with high CTR, plan thumbnail visual concepts, and formulate high-ranking YouTube and TikTok search tags. What channel are we scaling?",
-    suggestedPrompts: [
-      {
-        title: '5 High-CTR YouTube Titles',
-        desc: 'Curiosity gap & psychological triggers',
-        prompt: 'Generate 5 high-CTR YouTube title ideas with strong curiosity gaps for a video about AI breakthroughs',
-        icon: 'fa-arrow-trend-up'
-      },
-      {
-        title: '3 Thumbnail Visual Concepts',
-        desc: 'Visual backgrounds & 3-word overlays',
-        prompt: 'Design 3 high-contrast visual thumbnail concepts with 3-word bold text overlays for a finance video',
-        icon: 'fa-image'
-      },
-      {
-        title: '20 High-Ranking SEO Tags',
-        desc: 'Targeted search ranking keywords',
-        prompt: 'Provide 20 high-ranking YouTube and Google search SEO tags for Passive Income in 2026',
-        icon: 'fa-hashtag'
-      },
-      {
-        title: 'Trend Analysis for 2026',
-        desc: 'Emerging viral formats & niches',
-        prompt: 'What are the top 3 highest CPM and viral growth niches for faceless content channels right now?',
-        icon: 'fa-magnifying-glass-chart'
-      }
-    ]
-  },
-  {
-    id: 'voice_producer',
-    name: 'Voice & Audio Architect',
-    shortName: 'Audio',
-    title: 'Narration, Speech Cadence & SFX',
-    tagline: 'TTS Voice Matching, Music Mood & Sound Design',
-    icon: 'fa-waveform-lines',
-    badge: 'AUDIO SPECIALIST',
-    color: 'text-cyan-500',
-    gradient: 'from-cyan-500 via-blue-600 to-indigo-600',
-    welcomeText: "Sound check, 1-2! 🎙️ I am your Voice & Audio Architect. I guide you on selecting the perfect narrator accent (Kore, Ngozi, Chidinma, Aoede, Puck, Charon), adjusting speech pace, pairing royalty-free background music moods, and placing whoosh & pop sound effects. How can I tune your audio?",
-    suggestedPrompts: [
-      {
-        title: 'Voice Accent Recommendation',
-        desc: 'Match narrator to video niche',
-        prompt: 'Which voice accent and pacing should I use for a luxury watch and lifestyle reel?',
-        icon: 'fa-microphone'
-      },
-      {
-        title: 'SFX Cue Placement',
-        desc: 'Whooshes, pops & risers timing',
-        prompt: 'Where should I place sound effect cues (whoosh, pop, sparkle) throughout a 30-second video?',
-        icon: 'fa-volume-high'
-      },
-      {
-        title: 'Music Mood Pairing',
-        desc: 'Select optimal background track',
-        prompt: 'What background music mood and volume balance works best for an inspirational mindset video?',
-        icon: 'fa-music'
-      },
-      {
-        title: 'Speech Cadence Calibration',
-        desc: 'Speed tuning for fast Shorts',
-        prompt: 'How do I calibrate voiceover speech speed (1.0x vs 1.15x) for maximum TikTok retention?',
-        icon: 'fa-gauge-high'
+        title: 'Generate High-CTR SEO Tags',
+        desc: 'Algorithm optimization & titles',
+        prompt: 'Generate 5 high-CTR titles and 20 SEO tags for a viral tech and AI breakthrough video',
+        icon: 'fa-chart-line'
       }
     ]
   }

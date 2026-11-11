@@ -136,6 +136,20 @@ export const VIXORA_TOOLS_REGISTRY: VixoraToolEntry[] = [
     keywords: ['flyer', 'banner', 'thumbnail', 'graphic', 'poster', 'instagram', 'image', 'design']
   },
   {
+    id: 'tool_flyer_to_video',
+    name: 'Flyer-to-Video Ad Studio',
+    shortDescription: 'Turn any flyer or business promo into an animated video ad with music, SFX and voiceover.',
+    fullDescription: 'Reads flyers with Gemini Vision, lets you confirm exact facts, synthesizes dynamic Web Audio music beds + timed sound effects, and renders 9:16/16:9 MP4/WebM animated ads.',
+    category: 'video',
+    icon: 'fa-wand-magic-sparkles',
+    gradient: 'from-fuchsia-500 to-pink-600',
+    badge: 'FLYER 2 AD',
+    actionType: 'tab',
+    targetTab: 'flyer-ad',
+    suggestedPrompt: 'Turn my event flyer into a 30s animated video ad with background music and pricing badge',
+    keywords: ['flyer to video', 'flyer ad', 'poster to video', 'ad studio', 'flyer video', 'promo ad', 'animated ad']
+  },
+  {
     id: 'tool_subtitle_styler',
     name: 'TikTok Subtitle & Caption Styler',
     shortDescription: 'CapCut & TikTok style animated subtitles with pop green highlights.',
