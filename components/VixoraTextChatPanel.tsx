@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { GoogleGenAI } from '@google/genai';
 import { VIXORA_AGENT_TOOLS, VixoraAppContext } from '../services/vixoraAgentTools';
 import vixoraAgentAvatar from '../src/assets/images/vixora_agent_avatar_1786108775324.jpg';
 
@@ -13,9 +12,38 @@ export interface ChatMessage {
   attachedFile?: { name: string; text?: string };
   isThinking?: boolean;
   navigatedTab?: string;
+  agentId?: string;
 }
 
-interface VixoraTextChatPanelProps {
+export interface AgentPersona {
+  id: 'vixora_coach' | 'video_director' | 'script_master' | 'growth_strategist' | 'voice_producer';
+  name: string;
+  shortName: string;
+  title: string;
+  tagline: string;
+  icon: string;
+  badge: string;
+  color: string;
+  gradient: string;
+  welcomeText: string;
+  suggestedPrompts: Array<{
+    title: string;
+    desc: string;
+    prompt: string;
+    icon: string;
+  }>;
+}
+
+export interface ChatSession {
+  id: string;
+  title: string;
+  agentId: AgentPersona['id'];
+  messages: ChatMessage[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface VixoraTextChatPanelProps {
   isOpen: boolean;
   onClose: () => void;
   appContext: VixoraAppContext;
@@ -26,12 +54,198 @@ interface VixoraTextChatPanelProps {
   initialPrompt?: string;
 }
 
-const DEFAULT_WELCOME_MSG: ChatMessage = {
-  id: 'msg_welcome',
-  sender: 'vixora',
-  text: "How far my creator! 👋 I am Vixora, your AI Creator Assistant. You can chat with me, configure your API keys in Profile, or give me direct commands—I can generate videos on autopilot, change narrator voices, switch tabs, or write viral scripts! What are we cooking today?",
-  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-};
+export const CLAUDE_STYLE_AGENTS: AgentPersona[] = [
+  {
+    id: 'vixora_coach',
+    name: 'Vixora AI Assistant',
+    shortName: 'Vixora',
+    title: 'Executive Producer & App Commander',
+    tagline: 'Signature Nigerian Creator AI with 100% Studio Control',
+    icon: 'fa-bolt-lightning',
+    badge: 'OFFICIAL AI ASSISTANT',
+    color: 'text-amber-500',
+    gradient: 'from-amber-500 via-orange-500 to-red-500',
+    welcomeText: "How far my creator! 👋 I am Vixora, your Nigerian Lead AI Studio Assistant and Executive Producer. I can chat with you, give strategic advice, and control the entire Vixora Studio for you—I can cook videos on autopilot, change narrator voices, switch tabs, or write viral scripts! What are we cooking today?",
+    suggestedPrompts: [
+      {
+        title: 'Cook a 30s Viral Video',
+        desc: 'Autopilot generation for Finance & Wealth',
+        prompt: 'Cook a viral 30-second TikTok video about 5 Money Rules for Wealth on autopilot',
+        icon: 'fa-wand-magic-sparkles'
+      },
+      {
+        title: 'Set Voice to Nigerian Accent',
+        desc: 'Switch to Kore Nigerian female tone',
+        prompt: 'Switch narrator voice to Kore Nigerian accent and open voiceover studio',
+        icon: 'fa-waveform-lines'
+      },
+      {
+        title: 'Create Autopilot Reel',
+        desc: 'Daily habits & discipline topic',
+        prompt: 'Create an autopilot vertical reel about 3 atomic habits that will transform your day',
+        icon: 'fa-film'
+      },
+      {
+        title: 'Open Tools Library',
+        desc: 'Access 12+ AI creator tools',
+        prompt: 'Open the Tools Library so I can generate viral tags and hooks',
+        icon: 'fa-shapes'
+      }
+    ]
+  },
+  {
+    id: 'video_director',
+    name: 'Viral Video Director',
+    shortName: 'Director',
+    title: 'Hook & Visual Scene Pacing Specialist',
+    tagline: 'Cinematic Framing, B-Roll Cues & 3-Second Hooks',
+    icon: 'fa-clapperboard',
+    badge: 'CINEMATIC DIRECTOR',
+    color: 'text-rose-500',
+    gradient: 'from-rose-500 via-pink-600 to-purple-600',
+    welcomeText: "Lights, camera, action! 🎬 I am your Viral Video Director. I specialize in cinematic scene breakdowns, B-roll queries, 3-second scroll-stopping hooks, and dynamic visual pacing that keeps viewers glued to your Reels, Shorts, and TikToks. Give me a script or idea!",
+    suggestedPrompts: [
+      {
+        title: 'Break Down into 5 B-Roll Beats',
+        desc: 'Get exact visual stock queries',
+        prompt: 'Break down a 30-second video on luxury lifestyle into 5 exact visual B-roll scene queries',
+        icon: 'fa-camera-movie'
+      },
+      {
+        title: '3 Scroll-Stopping Hooks',
+        desc: 'Instant 3-second retention openers',
+        prompt: 'Write 3 aggressive, scroll-stopping 3-second opening visual hooks for YouTube Shorts',
+        icon: 'fa-bolt'
+      },
+      {
+        title: 'Pacing for 85% Retention',
+        desc: 'Scene transition timing guidelines',
+        prompt: 'How should I pace my video transitions and text overlays to achieve 85%+ retention?',
+        icon: 'fa-stopwatch'
+      },
+      {
+        title: 'B-Roll for Storytelling',
+        desc: 'Cinematic visual atmosphere',
+        prompt: 'Suggest dramatic cinematic B-roll scenes and lighting cues for an ancient mystery documentary',
+        icon: 'fa-eye'
+      }
+    ]
+  },
+  {
+    id: 'script_master',
+    name: 'Script Master & Copywriter',
+    shortName: 'Scriptwriter',
+    title: 'High-Retention Storytelling & Scripts',
+    tagline: 'Paced YouTube Shorts, Reels & TikTok Scripts',
+    icon: 'fa-scroll',
+    badge: 'VIRAL COPYWRITER',
+    color: 'text-purple-500',
+    gradient: 'from-purple-500 via-indigo-600 to-cyan-500',
+    welcomeText: "Greetings creator! 📜 I am your Script Master and Viral Copywriter. I craft tightly paced, psychologically gripping video scripts optimized for standard speaker speed (~140 words per minute) with zero fluff or filler words. Tell me what topic to write!",
+    suggestedPrompts: [
+      {
+        title: '30s Psychology Script',
+        desc: 'Dark psychology body language hack',
+        prompt: 'Write a 30-second high-retention script on Dark Psychology body language tricks (~70 words)',
+        icon: 'fa-brain'
+      },
+      {
+        title: '15s Punchy Reel Hook',
+        desc: 'Ultra-concise high-speed script',
+        prompt: 'Write a punchy 15-second high-energy script on why 99% fail in trading (~35 words)',
+        icon: 'fa-fire'
+      },
+      {
+        title: '60s Mini-Doc Narrative',
+        desc: 'Documentary style historical script',
+        prompt: 'Draft a 60-second captivating mini-documentary script on Ancient Roman gladiators (~140 words)',
+        icon: 'fa-book-open'
+      },
+      {
+        title: 'Refine My Existing Script',
+        desc: 'Cut fluff & boost retention',
+        prompt: 'I will paste a script—cut out the fluff, improve the hook, and optimize it for speech pacing',
+        icon: 'fa-pen-fancy'
+      }
+    ]
+  },
+  {
+    id: 'growth_strategist',
+    name: 'Growth & SEO Strategist',
+    shortName: 'Growth',
+    title: 'Algorithm, CTR & Title Specialist',
+    tagline: 'YouTube & TikTok Algorithm Hacking & High-CTR Titles',
+    icon: 'fa-chart-line',
+    badge: 'ALGORITHM HACKER',
+    color: 'text-emerald-500',
+    gradient: 'from-emerald-500 via-teal-500 to-blue-600',
+    welcomeText: "Welcome to the Growth Lab! 📈 I am your Algorithm & SEO Strategist. I analyze viral distribution mechanics, craft curiosity-gap titles with high CTR, plan thumbnail visual concepts, and formulate high-ranking YouTube and TikTok search tags. What channel are we scaling?",
+    suggestedPrompts: [
+      {
+        title: '5 High-CTR YouTube Titles',
+        desc: 'Curiosity gap & psychological triggers',
+        prompt: 'Generate 5 high-CTR YouTube title ideas with strong curiosity gaps for a video about AI breakthroughs',
+        icon: 'fa-arrow-trend-up'
+      },
+      {
+        title: '3 Thumbnail Visual Concepts',
+        desc: 'Visual backgrounds & 3-word overlays',
+        prompt: 'Design 3 high-contrast visual thumbnail concepts with 3-word bold text overlays for a finance video',
+        icon: 'fa-image'
+      },
+      {
+        title: '20 High-Ranking SEO Tags',
+        desc: 'Targeted search ranking keywords',
+        prompt: 'Provide 20 high-ranking YouTube and Google search SEO tags for Passive Income in 2026',
+        icon: 'fa-hashtag'
+      },
+      {
+        title: 'Trend Analysis for 2026',
+        desc: 'Emerging viral formats & niches',
+        prompt: 'What are the top 3 highest CPM and viral growth niches for faceless content channels right now?',
+        icon: 'fa-magnifying-glass-chart'
+      }
+    ]
+  },
+  {
+    id: 'voice_producer',
+    name: 'Voice & Audio Architect',
+    shortName: 'Audio',
+    title: 'Narration, Speech Cadence & SFX',
+    tagline: 'TTS Voice Matching, Music Mood & Sound Design',
+    icon: 'fa-waveform-lines',
+    badge: 'AUDIO SPECIALIST',
+    color: 'text-cyan-500',
+    gradient: 'from-cyan-500 via-blue-600 to-indigo-600',
+    welcomeText: "Sound check, 1-2! 🎙️ I am your Voice & Audio Architect. I guide you on selecting the perfect narrator accent (Kore, Ngozi, Chidinma, Aoede, Puck, Charon), adjusting speech pace, pairing royalty-free background music moods, and placing whoosh & pop sound effects. How can I tune your audio?",
+    suggestedPrompts: [
+      {
+        title: 'Voice Accent Recommendation',
+        desc: 'Match narrator to video niche',
+        prompt: 'Which voice accent and pacing should I use for a luxury watch and lifestyle reel?',
+        icon: 'fa-microphone'
+      },
+      {
+        title: 'SFX Cue Placement',
+        desc: 'Whooshes, pops & risers timing',
+        prompt: 'Where should I place sound effect cues (whoosh, pop, sparkle) throughout a 30-second video?',
+        icon: 'fa-volume-high'
+      },
+      {
+        title: 'Music Mood Pairing',
+        desc: 'Select optimal background track',
+        prompt: 'What background music mood and volume balance works best for an inspirational mindset video?',
+        icon: 'fa-music'
+      },
+      {
+        title: 'Speech Cadence Calibration',
+        desc: 'Speed tuning for fast Shorts',
+        prompt: 'How do I calibrate voiceover speech speed (1.0x vs 1.15x) for maximum TikTok retention?',
+        icon: 'fa-gauge-high'
+      }
+    ]
+  }
+];
 
 export const VixoraTextChatPanel: React.FC<VixoraTextChatPanelProps> = ({
   isOpen,
@@ -43,45 +257,255 @@ export const VixoraTextChatPanel: React.FC<VixoraTextChatPanelProps> = ({
   onStartLiveAssistant,
   initialPrompt
 }) => {
-  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+  // --- MULTI-SESSION CHAT STATE (ChatGPT & Claude Style) ---
+  const [sessions, setSessions] = useState<ChatSession[]>(() => {
     try {
-      const saved = localStorage.getItem('vixora_text_chat_history');
-      if (saved) {
-        const parsed = JSON.parse(saved);
+      const savedSessions = localStorage.getItem('vixora_chat_sessions_v1');
+      if (savedSessions) {
+        const parsed = JSON.parse(savedSessions);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
-    } catch (e) {}
-    return [DEFAULT_WELCOME_MSG];
+      // Backward compatibility: migrate old single-thread history if present
+      const oldHistory = localStorage.getItem('vixora_text_chat_history');
+      if (oldHistory) {
+        const parsedOld = JSON.parse(oldHistory);
+        if (Array.isArray(parsedOld) && parsedOld.length > 0) {
+          return [
+            {
+              id: 'session_initial',
+              title: 'Creator Workspace Chat',
+              agentId: 'vixora_coach',
+              messages: parsedOld,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            }
+          ];
+        }
+      }
+    } catch (e) {
+      console.warn('Session restoration note:', e);
+    }
+
+    const defaultAgent = CLAUDE_STYLE_AGENTS[0];
+    return [
+      {
+        id: 'session_' + Date.now(),
+        title: 'New Conversation',
+        agentId: 'vixora_coach',
+        messages: [
+          {
+            id: 'msg_welcome',
+            sender: 'vixora',
+            text: defaultAgent.welcomeText,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            agentId: defaultAgent.id
+          }
+        ],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }
+    ];
   });
 
+  const [activeSessionId, setActiveSessionId] = useState<string>(() => {
+    return sessions[0]?.id || 'session_default';
+  });
+
+  // Sidebar Controls (Left-Side Navigation)
+  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(() => {
+    // Default open on wide screens, closed on small mobile
+    if (typeof window !== 'undefined') {
+      return window.innerWidth >= 1024;
+    }
+    return true;
+  });
+  const [sidebarSearchQuery, setSidebarSearchQuery] = useState<string>('');
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [editingTitleText, setEditingTitleText] = useState<string>('');
+
+  // Active Session & Agent Derivation
+  const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
+  const activeAgent = CLAUDE_STYLE_AGENTS.find(a => a.id === activeSession?.agentId) || CLAUDE_STYLE_AGENTS[0];
+  const messages = activeSession?.messages || [];
+
+  // Chat Input & Interaction State
   const [inputQuery, setInputQuery] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
+  const [isAgentMenuOpen, setIsAgentMenuOpen] = useState(false);
   const [attachedImage, setAttachedImage] = useState<string | null>(null);
   const [attachedFile, setAttachedFile] = useState<{ name: string; text: string } | null>(null);
+  const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
 
   const imageInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const renameInputRef = useRef<HTMLInputElement>(null);
 
+  // Sync sessions to localStorage
   useEffect(() => {
     try {
-      localStorage.setItem('vixora_text_chat_history', JSON.stringify(messages));
+      localStorage.setItem('vixora_chat_sessions_v1', JSON.stringify(sessions));
+      // Keep legacy history synced with active session for fallback readers
+      if (activeSession?.messages) {
+        localStorage.setItem('vixora_text_chat_history', JSON.stringify(activeSession.messages));
+      }
     } catch (e) {}
-  }, [messages]);
+  }, [sessions, activeSession]);
 
+  // Scroll to bottom on new messages
   useEffect(() => {
     if (isOpen || isFullTab) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [isOpen, isFullTab, messages]);
+  }, [isOpen, isFullTab, messages, isProcessing]);
 
+  // Handle initialPrompt prop if passed
   useEffect(() => {
     if (initialPrompt) {
       setInputQuery(initialPrompt);
     }
   }, [initialPrompt]);
+
+  // Focus rename input when editing starts
+  useEffect(() => {
+    if (editingSessionId && renameInputRef.current) {
+      renameInputRef.current.focus();
+      renameInputRef.current.select();
+    }
+  }, [editingSessionId]);
+
+  // --- SESSION MANAGEMENT HANDLERS (ChatGPT & Claude Style) ---
+
+  const handleCreateNewChat = (specificAgentId?: AgentPersona['id']) => {
+    const targetAgentId = specificAgentId || activeAgent.id;
+    const agent = CLAUDE_STYLE_AGENTS.find(a => a.id === targetAgentId) || CLAUDE_STYLE_AGENTS[0];
+    const newSessionId = 'session_' + Date.now();
+    const newSession: ChatSession = {
+      id: newSessionId,
+      title: 'New Conversation',
+      agentId: agent.id,
+      messages: [
+        {
+          id: 'msg_' + Date.now(),
+          sender: 'vixora',
+          text: agent.welcomeText,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          agentId: agent.id
+        }
+      ],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    setSessions(prev => [newSession, ...prev]);
+    setActiveSessionId(newSessionId);
+    setInputQuery('');
+    setAttachedImage(null);
+    setAttachedFile(null);
+    setIsAddMenuOpen(false);
+    setIsAgentMenuOpen(false);
+
+    // On mobile, close sidebar after starting chat for full keyboard access
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      setIsSidebarOpen(false);
+    }
+  };
+
+  const handleSwitchSession = (sessionId: string) => {
+    setActiveSessionId(sessionId);
+    setInputQuery('');
+    setAttachedImage(null);
+    setAttachedFile(null);
+    setIsAddMenuOpen(false);
+    setIsAgentMenuOpen(false);
+
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      setIsSidebarOpen(false);
+    }
+  };
+
+  const handleDeleteSession = (e: React.MouseEvent, sessionId: string) => {
+    e.stopPropagation();
+    if (sessions.length <= 1) {
+      handleCreateNewChat();
+      return;
+    }
+    const updated = sessions.filter(s => s.id !== sessionId);
+    setSessions(updated);
+    if (activeSessionId === sessionId) {
+      setActiveSessionId(updated[0]?.id || 'session_default');
+    }
+  };
+
+  const handleStartRename = (e: React.MouseEvent, session: ChatSession) => {
+    e.stopPropagation();
+    setEditingSessionId(session.id);
+    setEditingTitleText(session.title);
+  };
+
+  const handleSaveRename = (sessionId: string) => {
+    const clean = editingTitleText.trim() || 'Conversation';
+    setSessions(prev =>
+      prev.map(s => (s.id === sessionId ? { ...s, title: clean, updatedAt: new Date().toISOString() } : s))
+    );
+    setEditingSessionId(null);
+  };
+
+  const handleClearAllSessions = () => {
+    if (window.confirm('Are you sure you want to delete all chat conversations? This cannot be undone.')) {
+      localStorage.removeItem('vixora_chat_sessions_v1');
+      localStorage.removeItem('vixora_text_chat_history');
+      const defaultAgent = CLAUDE_STYLE_AGENTS[0];
+      const freshSession: ChatSession = {
+        id: 'session_' + Date.now(),
+        title: 'New Conversation',
+        agentId: defaultAgent.id,
+        messages: [
+          {
+            id: 'msg_welcome',
+            sender: 'vixora',
+            text: defaultAgent.welcomeText,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            agentId: defaultAgent.id
+          }
+        ],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      setSessions([freshSession]);
+      setActiveSessionId(freshSession.id);
+    }
+  };
+
+  const handleSwitchAgentForCurrentSession = (agentId: AgentPersona['id']) => {
+    const agent = CLAUDE_STYLE_AGENTS.find(a => a.id === agentId) || CLAUDE_STYLE_AGENTS[0];
+    setSessions(prev =>
+      prev.map(s => {
+        if (s.id === activeSessionId) {
+          const switchNote: ChatMessage = {
+            id: `sw_${Date.now()}`,
+            sender: 'vixora',
+            text: `✨ Switched conversation agent to ${agent.name}. ${agent.tagline}`,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            actionBadge: `Agent: ${agent.name}`,
+            agentId: agent.id
+          };
+          return {
+            ...s,
+            agentId: agent.id,
+            messages: [...s.messages, switchNote],
+            updatedAt: new Date().toISOString()
+          };
+        }
+        return s;
+      })
+    );
+    setIsAgentMenuOpen(false);
+  };
+
+  // --- CHAT INTERACTION & AI GENERATION ---
 
   const interruptAi = () => {
     if (abortControllerRef.current) {
@@ -91,29 +515,44 @@ export const VixoraTextChatPanel: React.FC<VixoraTextChatPanelProps> = ({
       abortControllerRef.current = null;
     }
     setIsProcessing(false);
-    setMessages(prev => {
-      const withoutThinking = prev.filter(m => !m.isThinking);
-      return [
-        ...withoutThinking,
-        {
-          id: `int_${Date.now()}`,
-          sender: 'vixora',
-          text: "⚡ [Response stopped by creator. Ready for your next instruction!]",
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          actionBadge: "Interrupted by Creator"
-        }
-      ];
-    });
+    const stoppedMsg: ChatMessage = {
+      id: `int_${Date.now()}`,
+      sender: 'vixora',
+      text: '⚡ [Response stopped by creator. Ready for your next instruction!]',
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      actionBadge: 'Interrupted by Creator'
+    };
+
+    setSessions(prev =>
+      prev.map(s =>
+        s.id === activeSessionId
+          ? {
+              ...s,
+              messages: [...s.messages.filter(m => !m.isThinking), stoppedMsg],
+              updatedAt: new Date().toISOString()
+            }
+          : s
+      )
+    );
+  };
+
+  const handleCopyMessage = (msg: ChatMessage) => {
+    try {
+      navigator.clipboard.writeText(msg.text);
+      setCopiedMsgId(msg.id);
+      setTimeout(() => setCopiedMsgId(null), 2500);
+    } catch (e) {}
   };
 
   const handleSendMessage = async (customText?: string) => {
     const textToSend = (customText || inputQuery).trim();
     if (!textToSend && !attachedImage && !attachedFile) return;
 
-    // If AI is currently replying, interrupt the active stream first
     if (isProcessing) {
       if (abortControllerRef.current) {
-        try { abortControllerRef.current.abort(); } catch (e) {}
+        try {
+          abortControllerRef.current.abort();
+        } catch (e) {}
         abortControllerRef.current = null;
       }
       setIsProcessing(false);
@@ -141,12 +580,33 @@ export const VixoraTextChatPanel: React.FC<VixoraTextChatPanelProps> = ({
     const thinkingMsg: ChatMessage = {
       id: thinkingMsgId,
       sender: 'vixora',
-      text: "Vixora is thinking & preparing action...",
+      text: `${activeAgent.shortName} is thinking & preparing action...`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      isThinking: true
+      isThinking: true,
+      agentId: activeAgent.id
     };
 
-    setMessages(prev => [...prev.filter(m => !m.isThinking), userMsg, thinkingMsg]);
+    // Auto-update session title from first user prompt if still default
+    let sessionNewTitle = activeSession?.title;
+    if (activeSession?.title === 'New Conversation' && textToSend) {
+      sessionNewTitle = textToSend.slice(0, 35) + (textToSend.length > 35 ? '...' : '');
+    }
+
+    // Update active session with user message + thinking state
+    setSessions(prev =>
+      prev.map(s => {
+        if (s.id === activeSessionId) {
+          return {
+            ...s,
+            title: sessionNewTitle || s.title,
+            messages: [...s.messages.filter(m => !m.isThinking), userMsg, thinkingMsg],
+            updatedAt: new Date().toISOString()
+          };
+        }
+        return s;
+      })
+    );
+
     setInputQuery('');
     setAttachedImage(null);
     setAttachedFile(null);
@@ -154,42 +614,31 @@ export const VixoraTextChatPanel: React.FC<VixoraTextChatPanelProps> = ({
     setIsProcessing(true);
 
     try {
-      const isInvalidKey = (k?: string) => {
-        if (!k) return true;
-        const clean = k.trim();
-        return (
-          !clean ||
-          clean === 'undefined' ||
-          clean === 'null' ||
-          clean === 'your_gemini_api_key_here' ||
-          clean.includes('AIzaSyAd6JjVFP5LYmtiSUXLH-HZGIPlHcseohA') ||
-          clean.includes('AIzaSyAeCyBC9daZbvXNRtfLjxBWwpF3MwXJggk') ||
-          clean.includes('AIzaSyCBO1PRv5h9aQAB3rWb') ||
-          clean.startsWith('AIzaSy...')
-        );
-      };
-
-      const envApiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || '';
-      let activeKey = !isInvalidKey(apiKey) ? apiKey : !isInvalidKey(envApiKey) ? envApiKey : '';
-
-      if (!activeKey) {
-        throw new Error("No valid Gemini API key found. Please open Profile to configure your API key.");
-      }
-      const ai = new GoogleGenAI({ apiKey: activeKey });
-
-      const systemInstruction = `You are 'Vixora' (Visora AI), the highly energetic, vibrant, warm, and brilliant Nigerian AI Creator Assistant & Video Producer! Address the user warmly by name (${appContext.userFullName || 'Creator'}). Your voice and vibe are 100% highly energetic, lively, witty, supportive, creative, and enthusiastic with authentic, warm Nigerian energy (e.g., "No wahala at all!", "Oya let's cook this viral masterpiece!", "I hear you crystal clear!"). Speak dynamically with high energy. No asterisks (*).
+      // Build Specialized Agent System Instructions
+      let systemInstruction = '';
+      if (activeAgent.id === 'vixora_coach') {
+        systemInstruction = `You are 'Vixora' (Visora AI), the highly energetic, vibrant, warm, and brilliant Nigerian AI Creator Assistant & Video Producer! Address the user warmly by name (${appContext.userFullName || 'Creator'}). Your voice and vibe are 100% highly energetic, lively, witty, supportive, creative, and enthusiastic with authentic, warm Nigerian energy (e.g., "No wahala at all!", "Oya let's cook this viral masterpiece!", "I hear you crystal clear!"). Speak dynamically with high energy. No asterisks (*).
 
 YOUR MANDATE:
 You can CONTROL the Vixora AI Studio app directly for the user using function calls/tools!
-Whenever the user asks you to open the profile page, configure API keys, make a video, switch tabs, change voice, edit script, change caption style, generate a flyer, or learn a skill, CALL THE APPROPRIATE TOOL!
+Whenever the user asks you to open the profile page, configure API keys, make a video, switch tabs, change voice, edit script, change caption style, generate a flyer, or learn a skill, CALL THE APPROPRIATE TOOL!`;
+      } else if (activeAgent.id === 'video_director') {
+        systemInstruction = `You are the 'Viral Video Director' agent inside Vixora Studio. You are an elite cinematic Short-form video director (TikTok, Reels, YouTube Shorts).
+Your focus is visual storytelling, camera angles, lighting, scene duration, B-roll queries for stock engines, and 3-second visual retention hooks.
+When the user asks for a video or scene ideas, give specific, actionable B-roll visual search queries and visual directions. You can also call Vixora Studio tools like createAutopilotVideo or navigateToTab when requested!`;
+      } else if (activeAgent.id === 'script_master') {
+        systemInstruction = `You are the 'Script Master & Copywriter' agent inside Vixora Studio. You are an expert viral copywriter specializing in YouTube Shorts, Instagram Reels, and TikTok scripts.
+Strictly adhere to spoken word count pacing: 15s (~35 words max), 30s (~70 words), 60s (~140 words).
+Structure every script with: 1) Instant 3-second hook, 2) Story / Insight body, 3) Strong CTA. No filler words. No asterisks (*). Plain text only. You can also trigger generateScript tool when appropriate.`;
+      } else if (activeAgent.id === 'growth_strategist') {
+        systemInstruction = `You are the 'Growth & SEO Strategist' agent inside Vixora Studio. You are a YouTube, TikTok, and Instagram algorithm growth hacker.
+You specialize in curiosity-gap high-CTR video titles, 3-word bold thumbnail text overlays, visual thumbnail compositions, and high-ranking SEO search tags. Always provide formatted lists with CTR rationale.`;
+      } else {
+        systemInstruction = `You are the 'Voice & Audio Architect' agent inside Vixora Studio. You are a professional sound designer and voiceover director.
+You advise creators on voice selection (Kore Nigerian accent, Ngozi, Chidinma, Aoede, Puck, Charon), speech speed calibration (1.0x to 1.2x), background music mood matching, and sound effect cue placement (whooshes, pops, sparkles).`;
+      }
 
-AMBIGUITY RULE:
-If the user's request is ambiguous or missing information, ask a quick, friendly clarifying question first in chat.
-
-NAVIGATION:
-If user asks to open profile, settings, studio, autopilot, scripts, voiceover, tools, or any page, call the navigateToTab tool immediately!`;
-
-      // Build conversation history turns for Gemini
+      // Format conversation history for Gemini API
       const historyTurns = messages
         .filter(m => !m.isThinking)
         .slice(-10)
@@ -198,41 +647,67 @@ If user asks to open profile, settings, studio, autopilot, scripts, voiceover, t
           parts: [{ text: m.text }]
         }));
 
-      historyTurns.push({
-        role: 'user',
-        parts: [{ text: fullPromptText || 'Hello Vixora!' }]
-      });
+      // Add current user prompt turn
+      const currentParts: any[] = [{ text: fullPromptText }];
+      if (attachedImage) {
+        const base64Data = attachedImage.split(',')[1];
+        const mimeMatch = attachedImage.match(/data:([^;]+);base64/);
+        const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+        if (base64Data) {
+          currentParts.push({
+            inlineData: {
+              data: base64Data,
+              mimeType
+            }
+          });
+        }
+      }
+      historyTurns.push({ role: 'user', parts: currentParts });
 
       let responseText = '';
-      let actionBadgeText: string | undefined = undefined;
-      let generatedImageUrl: string | undefined = undefined;
-      let targetNavTab: string | undefined = undefined;
+      let actionBadgeText: string | undefined;
+      let generatedImageUrl: string | undefined;
+      let targetNavTab: string | undefined;
 
-      if (currentController.signal.aborted) return;
-
+      // Execute via backend Gemini generation proxy endpoint
       try {
-        const response = await ai.models.generateContent({
-          model: 'gemini-2.5-flash',
-          contents: historyTurns,
-          config: {
-            systemInstruction,
-            tools: [{
-              functionDeclarations: VIXORA_AGENT_TOOLS.map(t => ({
-                name: t.name,
-                description: t.description,
-                parameters: t.parameters
-              }))
-            }]
-          }
+        const apiRes = await fetch('/api/gemini/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: 'gemini-2.5-flash',
+            contents: historyTurns,
+            config: {
+              systemInstruction,
+              tools: [
+                {
+                  functionDeclarations: VIXORA_AGENT_TOOLS.map(t => ({
+                    name: t.name,
+                    description: t.description,
+                    parameters: t.parameters
+                  }))
+                }
+              ]
+            }
+          })
         });
 
+        if (!apiRes.ok) {
+          throw new Error('Server-side AI chat generation failed');
+        }
+
+        const apiData = await apiRes.json();
+        const responseTextVal = apiData.text || '';
+        const functionCalls =
+          apiData.candidates?.[0]?.content?.parts?.filter((p: any) => p.functionCall).map((p: any) => p.functionCall) ||
+          [];
+
         if (currentController.signal.aborted) return;
+        responseText = responseTextVal;
 
-        responseText = response.text || '';
-
-        // Handle Function Calls
-        if (response.functionCalls && response.functionCalls.length > 0) {
-          for (const fc of response.functionCalls) {
+        // Execute function calls if requested by model
+        if (functionCalls && functionCalls.length > 0) {
+          for (const fc of functionCalls) {
             const tool = VIXORA_AGENT_TOOLS.find(t => t.name === fc.name);
             if (tool) {
               const toolResult = await tool.execute(fc.args, appContext);
@@ -253,23 +728,29 @@ If user asks to open profile, settings, studio, autopilot, scripts, voiceover, t
                   },
                   {
                     role: 'user',
-                    parts: [{
-                      functionResponse: {
-                        name: fc.name,
-                        response: { result: toolResult.message }
+                    parts: [
+                      {
+                        functionResponse: {
+                          name: fc.name,
+                          response: { result: toolResult.message }
+                        }
                       }
-                    }]
+                    ]
                   }
                 ];
 
-                const secondRes = await ai.models.generateContent({
-                  model: 'gemini-2.5-flash',
-                  contents: secondPassTurns,
-                  config: { systemInstruction }
+                const secondApiRes = await fetch('/api/gemini/generate', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    model: 'gemini-2.5-flash',
+                    contents: secondPassTurns,
+                    config: { systemInstruction }
+                  })
                 });
-
-                if (secondRes.text) {
-                  responseText = secondRes.text;
+                const secondData = await secondApiRes.json();
+                if (secondData.text) {
+                  responseText = secondData.text;
                 }
               } catch (err) {
                 if (!responseText) {
@@ -280,58 +761,52 @@ If user asks to open profile, settings, studio, autopilot, scripts, voiceover, t
           }
         }
       } catch (firstPassErr) {
-        console.warn("First pass chat model call with tools warning:", firstPassErr);
+        console.warn('First pass chat model call fallback:', firstPassErr);
         if (currentController.signal.aborted) return;
-        // Fallback pass without tools functionDeclarations
         try {
-          const fallbackRes = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: historyTurns,
-            config: { systemInstruction }
+          const fallbackApiRes = await fetch('/api/gemini/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              model: 'gemini-2.5-flash',
+              contents: historyTurns,
+              config: { systemInstruction }
+            })
           });
-          responseText = fallbackRes.text || '';
+          const fallbackData = await fallbackApiRes.json();
+          responseText = fallbackData.text || '';
         } catch (secondPassErr) {
-          console.warn("Second pass chat model call warning:", secondPassErr);
+          console.warn('Second pass fallback warning:', secondPassErr);
         }
       }
 
       if (currentController.signal.aborted) return;
 
-      // Check local intent fallback if API response was empty or error occurred
+      // Smart fallback intent resolution if empty
       if (!responseText) {
         const lower = fullPromptText.toLowerCase();
-        if (lower.includes('profile') || lower.includes('key') || lower.includes('setting') || lower.includes('account') || lower.includes('fish.audio') || lower.includes('fish audio')) {
+        if (lower.includes('profile') || lower.includes('key') || lower.includes('setting')) {
           appContext.setActiveTab('profile');
           targetNavTab = 'profile';
           actionBadgeText = '⚡ Navigated to Profile & API Key Settings';
-          responseText = "I've opened your Profile page! You can configure your Gemini AI and Fish.Audio API keys right there.";
+          responseText = "I've opened your Profile settings where you can manage your Gemini and Fish.Audio API keys.";
         } else if (lower.includes('video') || lower.includes('autopilot') || lower.includes('generate')) {
           appContext.setActiveTab('autopilot');
           targetNavTab = 'autopilot';
           actionBadgeText = '⚡ Navigated to AI Autopilot Studio';
-          responseText = "No wahala! I have switched you directly to the AI Autopilot Studio so we can cook your video!";
+          responseText = "No wahala! I have switched you directly to the AI Autopilot Studio so we can cook your video.";
         } else if (lower.includes('script')) {
           appContext.setActiveTab('scripts');
           targetNavTab = 'scripts';
-          actionBadgeText = '⚡ Navigated to YT Scripts Genius';
+          actionBadgeText = '⚡ Navigated to Script Writer';
           responseText = "I've brought you right to the Script Writer studio! Enter your topic to draft a viral video script.";
-        } else if (lower.includes('voice') || lower.includes('speech') || lower.includes('narration')) {
+        } else if (lower.includes('voice') || lower.includes('speech')) {
           appContext.setActiveTab('voiceover');
           targetNavTab = 'voiceover';
           actionBadgeText = '⚡ Navigated to Voice Studio';
-          responseText = "Switched to AI Voice Studio! You can choose Kore, Chimamanda, or any preferred narrator voice.";
-        } else if (lower.includes('coach') || lower.includes('sister')) {
-          appContext.setActiveTab('coach');
-          targetNavTab = 'coach';
-          actionBadgeText = '⚡ Navigated to Sister Vixora Coach';
-          responseText = "God bless you! Switched to Sister Vixora Content Master & Divine Purpose Coach.";
-        } else if (lower.includes('tools') || lower.includes('library')) {
-          appContext.setActiveTab('tools');
-          targetNavTab = 'tools';
-          actionBadgeText = '⚡ Navigated to Tools Library';
-          responseText = "Opening our unified Vixora AI Tools Library!";
+          responseText = "Switched to AI Voice Studio! You can choose Kore, Ngozi, Chidinma, or any preferred narrator voice.";
         } else {
-          responseText = "No wahala my creator! Tell me what video topic, script, or voiceover you would like to generate, or choose from our Quick Actions below!";
+          responseText = `I hear you crystal clear! As your ${activeAgent.name}, I am ready to craft your next viral video, script, or growth strategy.`;
         }
       }
 
@@ -342,25 +817,47 @@ If user asks to open profile, settings, studio, autopilot, scripts, voiceover, t
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         actionBadge: actionBadgeText,
         imageUrl: generatedImageUrl,
-        navigatedTab: targetNavTab
+        navigatedTab: targetNavTab,
+        agentId: activeAgent.id
       };
 
-      setMessages(prev => prev.filter(m => m.id !== thinkingMsgId).concat(agentMsg));
+      setSessions(prev =>
+        prev.map(s => {
+          if (s.id === activeSessionId) {
+            return {
+              ...s,
+              messages: s.messages.filter(m => m.id !== thinkingMsgId).concat(agentMsg),
+              updatedAt: new Date().toISOString()
+            };
+          }
+          return s;
+        })
+      );
     } catch (err: any) {
       if (currentController.signal.aborted) return;
-      console.error("Vixora Text Chat Error:", err);
+      console.error('Chat generation error:', err);
       const errorMsg: ChatMessage = {
         id: `err_${Date.now()}`,
         sender: 'vixora',
-        text: `Network or API connection error: ${err?.message || 'Please check your connection and try again.'}`,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        text: "I encountered a transient connection hiccup. Please ask again or check your internet connection.",
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        actionBadge: "Connection Alert",
+        agentId: activeAgent.id
       };
-      setMessages(prev => prev.filter(m => m.id !== thinkingMsgId).concat(errorMsg));
+      setSessions(prev =>
+        prev.map(s => {
+          if (s.id === activeSessionId) {
+            return {
+              ...s,
+              messages: s.messages.filter(m => m.id !== thinkingMsgId).concat(errorMsg),
+              updatedAt: new Date().toISOString()
+            };
+          }
+          return s;
+        })
+      );
     } finally {
-      if (abortControllerRef.current === currentController) {
-        setIsProcessing(false);
-        abortControllerRef.current = null;
-      }
+      setIsProcessing(false);
     }
   };
 
@@ -368,7 +865,7 @@ If user asks to open profile, settings, studio, autopilot, scripts, voiceover, t
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (evt) => {
+    reader.onload = evt => {
       setAttachedImage(evt.target?.result as string);
       setIsAddMenuOpen(false);
     };
@@ -379,450 +876,909 @@ If user asks to open profile, settings, studio, autopilot, scripts, voiceover, t
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (evt) => {
+    reader.onload = evt => {
       setAttachedFile({ name: file.name, text: evt.target?.result as string });
       setIsAddMenuOpen(false);
     };
     reader.readAsText(file);
   };
 
-  const handleClearHistory = () => {
-    if (window.confirm("Clear chat history with Vixora?")) {
-      setMessages([DEFAULT_WELCOME_MSG]);
-      localStorage.removeItem('vixora_text_chat_history');
-    }
-  };
-
   if (!isOpen && !isFullTab) return null;
 
+  // Filtered session list for search
+  const filteredSessions = sessions.filter(s =>
+    sidebarSearchQuery ? s.title.toLowerCase().includes(sidebarSearchQuery.toLowerCase()) : true
+  );
+
   return (
-    <div 
+    <div
       className={
-        isFullTab 
-          ? "w-full h-[calc(100vh-120px)] flex flex-col relative animate-fade-in"
-          : "fixed inset-0 z-[250] bg-slate-950/70 backdrop-blur-md flex justify-end animate-fade-in"
+        isFullTab
+          ? "w-full h-full flex flex-col relative animate-fade-in"
+          : "fixed inset-0 z-[250] bg-slate-950/75 backdrop-blur-md flex justify-end animate-fade-in"
       }
       onClick={isFullTab ? undefined : onClose}
     >
-      <div 
+      {/* OUTER WORKSPACE WRAPPER */}
+      <div
         className={
           isFullTab
-            ? `w-full h-full flex flex-col rounded-3xl border shadow-xl relative overflow-hidden ${
-                themeMode === 'light' 
-                  ? 'bg-slate-50 border-slate-200 text-slate-900' 
-                  : 'bg-slate-900/90 border-white/10 text-white'
+            ? `w-full h-full flex flex-row rounded-3xl border shadow-2xl relative overflow-hidden ${
+                themeMode === 'light'
+                  ? 'bg-slate-50 border-slate-200 text-slate-900'
+                  : 'bg-slate-900 border-white/10 text-white'
               }`
-            : `w-full max-w-lg h-full flex flex-col shadow-2xl border-l transition-all duration-300 relative ${
-                themeMode === 'light' 
-                  ? 'bg-slate-50 border-slate-200 text-slate-900' 
+            : `w-full max-w-5xl h-full flex flex-row shadow-2xl border-l transition-all duration-300 relative overflow-hidden ${
+                themeMode === 'light'
+                  ? 'bg-slate-50 border-slate-200 text-slate-900'
                   : 'bg-slate-900 border-white/10 text-white'
               }`
         }
         onClick={e => e.stopPropagation()}
       >
-        {/* CHAT HEADER */}
-        <div className={`p-4 border-b flex items-center justify-between ${
-          themeMode === 'light' ? 'bg-white border-slate-200' : 'bg-slate-950/80 border-white/10'
-        }`}>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl overflow-hidden border-2 border-ggd-orange p-0.5 shadow-md bg-slate-900 shrink-0">
-              <img 
-                src={vixoraAgentAvatar} 
-                alt="Vixora AI" 
-                className="w-full h-full object-cover rounded-xl" 
-                referrerPolicy="no-referrer"
-              />
-            </div>
-            <div>
+        {/* ================================================================= */}
+        {/* 1. LEFT-SIDE NAVIGATION SIDEBAR (ChatGPT & Claude Agent Style)    */}
+        {/* ================================================================= */}
+        <aside
+          className={`h-full flex flex-col border-r transition-all duration-300 z-30 shrink-0 ${
+            themeMode === 'light'
+              ? 'bg-white border-slate-200/90 text-slate-900'
+              : 'bg-slate-950 border-white/10 text-white'
+          } ${
+            isSidebarOpen
+              ? 'w-72 sm:w-80 fixed lg:relative inset-y-0 left-0 shadow-2xl lg:shadow-none'
+              : 'w-0 -translate-x-full lg:translate-x-0 lg:w-0 overflow-hidden border-none'
+          }`}
+        >
+          {/* SIDEBAR HEADER: APP BRAND & NEW CHAT ACTION */}
+          <div className="p-3.5 border-b border-slate-200 dark:border-white/10 space-y-3">
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-black uppercase tracking-tight">Vixora AI Assistant</h3>
-                <span className="px-2 py-0.5 text-[8px] font-black uppercase tracking-wider rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
-                  VIXORA AI
-                </span>
+                <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-orange-500 to-amber-400 p-0.5 flex items-center justify-center shadow-md">
+                  <div className="w-full h-full bg-slate-950 rounded-[6px] flex items-center justify-center">
+                    <i className="fa-solid fa-comments text-ggd-orange text-xs"></i>
+                  </div>
+                </div>
+                <div className="leading-tight">
+                  <span className="text-xs font-black uppercase tracking-tight text-ggd-orange">Vixora AI</span>
+                  <span className="text-[9px] font-bold text-slate-400 ml-1">Agents</span>
+                </div>
               </div>
-              <p className="text-[9.5px] font-bold uppercase text-ggd-orange tracking-widest flex items-center gap-1.5 mt-0.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span>Active Workspace Command Agent</span>
-              </p>
+
+              {/* Close sidebar button on mobile */}
+              <button
+                type="button"
+                onClick={() => setIsSidebarOpen(false)}
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
+                title="Collapse sidebar"
+              >
+                <i className="fa-solid fa-chevron-left text-xs"></i>
+              </button>
             </div>
-          </div>
 
-          <div className="flex items-center gap-2">
-            {isProcessing && (
-              <button 
-                onClick={interruptAi}
-                title="Interrupt / Stop AI Response"
-                className="px-2.5 py-1.5 rounded-xl border border-red-500/40 bg-red-500/20 text-red-300 text-[10px] font-black uppercase flex items-center gap-1.5 transition-all active:scale-95 animate-pulse shadow-md"
-              >
-                <i className="fa-solid fa-hand text-xs"></i>
-                <span className="hidden sm:inline">Stop</span>
-              </button>
-            )}
-
-            <button 
-              onClick={() => {
-                appContext.setActiveTab('profile');
-                if (!isFullTab) onClose();
-              }}
-              title="Open Profile & API Keys"
-              className={`px-2.5 py-1.5 rounded-xl border text-[10px] font-black uppercase flex items-center gap-1.5 transition-all active:scale-95 ${
-                themeMode === 'light' 
-                  ? 'bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100' 
-                  : 'bg-purple-500/15 border-purple-500/30 text-purple-300 hover:bg-purple-500/25'
-              }`}
-            >
-              <i className="fa-solid fa-user-gear text-xs"></i>
-              <span className="hidden sm:inline">Profile</span>
-            </button>
-
-            <button 
-              onClick={handleClearHistory} 
-              title="Clear Chat History"
-              className={`px-2.5 py-1.5 rounded-xl border text-[10px] font-bold uppercase flex items-center gap-1.5 transition-all active:scale-95 ${
-                themeMode === 'light' ? 'bg-slate-100 border-slate-200 text-slate-600 hover:bg-slate-200' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'
-              }`}
-            >
-              <i className="fa-solid fa-trash-can text-xs"></i>
-              <span className="hidden sm:inline">Clear</span>
-            </button>
-            {!isFullTab && (
-              <button 
-                onClick={onClose} 
-                className={`w-8 h-8 rounded-full flex items-center justify-center border text-xs transition-all active:scale-95 ${
-                  themeMode === 'light' ? 'bg-slate-100 border-slate-200 text-slate-800 hover:bg-slate-200' : 'bg-white/5 border-white/10 text-white hover:bg-white/10'
-                }`}
-              >
-                <i className="fa-solid fa-xmark"></i>
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* QUICK SUGGESTION CHIPS */}
-        <div className={`p-2.5 border-b overflow-x-auto flex items-center gap-2 scrollbar-none ${
-          themeMode === 'light' ? 'bg-slate-100/80 border-slate-200' : 'bg-slate-950/40 border-white/5'
-        }`}>
-          {[
-            { label: '🔑 Profile & API Keys', cmd: 'Open my profile page so I can configure API keys' },
-            { label: '⚡ Cook Finance Video', cmd: 'Generate a 30s vertical video on 5 rules of wealth' },
-            { label: '🎨 Generate Flyer', cmd: 'Generate a promotional flyer banner for my finance channel' },
-            { label: '🎙️ Voice to Kore', cmd: 'Change the voice narrator to Kore' },
-            { label: '📐 9:16 Vertical Ratio', cmd: 'Change video preferences to 9:16 vertical ratio' },
-            { label: '🔤 TikTok Green Captions', cmd: 'Change subtitle caption style to TikTok pop green' }
-          ].map((chip, idx) => (
+            {/* CHATGPT / CLAUDE STYLE: + NEW CHAT BUTTON */}
             <button
-              key={idx}
-              onClick={() => handleSendMessage(chip.cmd)}
-              className={`px-3 py-1.5 rounded-full text-[10px] font-bold whitespace-nowrap border transition-all active:scale-95 shrink-0 ${
-                themeMode === 'light'
-                  ? 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100 shadow-sm'
-                  : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
-              }`}
+              type="button"
+              onClick={() => handleCreateNewChat()}
+              className="w-full py-2.5 px-3.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white text-xs font-black uppercase tracking-wider flex items-center justify-between shadow-lg active:scale-98 transition-all cursor-pointer group"
             >
-              {chip.label}
+              <div className="flex items-center gap-2">
+                <div className="w-5 h-5 rounded-lg bg-white/20 flex items-center justify-center text-xs">
+                  <i className="fa-solid fa-plus text-[11px]"></i>
+                </div>
+                <span>New Chat</span>
+              </div>
+              <span className="text-[9px] px-1.5 py-0.5 rounded bg-black/20 text-white/90 font-mono font-bold">
+                +Thread
+              </span>
             </button>
-          ))}
-        </div>
 
-        {/* MESSAGES FEED */}
-        <div className="flex-1 p-4 sm:p-6 overflow-y-auto space-y-4 text-xs max-w-3xl mx-auto w-full">
-          {messages.map((msg) => (
-            <div 
-              key={msg.id} 
-              className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'} animate-fade-in`}
-            >
-              <div className="flex items-center gap-2 mb-1 px-1">
-                {msg.sender === 'vixora' && (
-                  <span className="text-[9.5px] font-black uppercase tracking-wider text-ggd-orange flex items-center gap-1">
-                    <i className="fa-solid fa-sparkles text-[10px]"></i>
-                    <span>Vixora AI</span>
-                  </span>
-                )}
-                {msg.sender === 'user' && (
-                  <span className="text-[9.5px] font-black uppercase tracking-wider text-slate-400">
-                    You
-                  </span>
-                )}
-                <span className="text-[8px] font-medium text-slate-500">{msg.timestamp}</span>
-              </div>
-
-              <div 
-                className={`max-w-[88%] p-4 rounded-3xl space-y-2 shadow-md leading-relaxed ${
-                  msg.sender === 'user'
-                    ? 'bg-gradient-to-r from-orange-500 to-amber-600 text-white rounded-tr-none font-medium'
-                    : themeMode === 'light'
-                    ? 'bg-white border border-slate-200 text-slate-900 rounded-tl-none'
-                    : 'bg-slate-800/90 border border-white/10 text-slate-100 rounded-tl-none'
+            {/* SEARCH CHATS INPUT */}
+            <div className="relative">
+              <input
+                type="text"
+                value={sidebarSearchQuery}
+                onChange={e => setSidebarSearchQuery(e.target.value)}
+                placeholder="Search conversations..."
+                className={`w-full py-1.5 pl-8 pr-7 text-[11px] rounded-xl border outline-none font-medium transition-colors ${
+                  themeMode === 'light'
+                    ? 'bg-slate-100 border-slate-200 text-slate-800 placeholder-slate-400 focus:bg-white focus:border-orange-400'
+                    : 'bg-white/5 border-white/10 text-white placeholder-slate-500 focus:bg-slate-900 focus:border-orange-500'
                 }`}
-              >
-                {/* ATTACHED IMAGE OR FILE DISPLAY IN MESSAGE */}
-                {msg.imageUrl && (
-                  <div className="mb-2 rounded-2xl overflow-hidden border border-white/20 shadow-md">
-                    <img src={msg.imageUrl} alt="Attached asset" className="w-full max-h-60 object-cover" />
-                  </div>
-                )}
-
-                {msg.attachedFile && (
-                  <div className="mb-2 p-2.5 rounded-xl bg-black/20 border border-white/10 flex items-center gap-2 text-[10px] font-bold">
-                    <i className="fa-solid fa-file-code text-ggd-orange"></i>
-                    <span>Attached Document: {msg.attachedFile.name}</span>
-                  </div>
-                )}
-
-                {msg.isThinking ? (
-                  <div className="flex items-center justify-between gap-3 py-1">
-                    <div className="flex items-center gap-2.5 text-ggd-orange font-bold text-[11px]">
-                      <i className="fa-solid fa-spinner animate-spin text-sm"></i>
-                      <span>Vixora is analyzing & executing action...</span>
-                    </div>
-                    <button
-                      onClick={interruptAi}
-                      className="px-2.5 py-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center gap-1 active:scale-95 transition-all cursor-pointer"
-                    >
-                      <i className="fa-solid fa-hand"></i>
-                      <span>Stop</span>
-                    </button>
-                  </div>
-                ) : (
-                  <p className="whitespace-pre-wrap">{msg.text}</p>
-                )}
-
-                {/* ACTION EXECUTION BADGE */}
-                {msg.actionBadge && (
-                  <div className="mt-2.5 p-2.5 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[10.5px] font-bold flex items-center gap-2 shadow-sm">
-                    <i className="fa-solid fa-bolt text-emerald-400"></i>
-                    <span>{msg.actionBadge}</span>
-                  </div>
-                )}
-
-                {/* DIRECT 1-TAP OPEN PAGE BUTTON */}
-                {msg.navigatedTab && (
-                  <div className="pt-2">
-                    <button
-                      onClick={() => {
-                        appContext.setActiveTab(msg.navigatedTab as any);
-                        if (!isFullTab) onClose();
-                      }}
-                      className="w-full py-2 px-3.5 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black uppercase text-[9.5px] tracking-widest flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all cursor-pointer border border-purple-400/30"
-                    >
-                      <i className="fa-solid fa-arrow-up-right-from-square text-xs"></i>
-                      <span>Open {msg.navigatedTab.toUpperCase()} Page Now →</span>
-                    </button>
-                  </div>
-                )}
-              </div>
+              />
+              <i className="fa-solid fa-magnifying-glass text-[10px] text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2"></i>
+              {sidebarSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSidebarSearchQuery('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-[10px]"
+                >
+                  <i className="fa-solid fa-xmark"></i>
+                </button>
+              )}
             </div>
-          ))}
-          <div ref={messagesEndRef} />
-        </div>
+          </div>
 
-        {/* ATTACHMENT PREVIEW DOCK BEFORE SENDING */}
-        {(attachedImage || attachedFile) && (
-          <div className="px-4 py-2 border-t border-white/10 bg-slate-950/80 flex items-center gap-3">
-            {attachedImage && (
-              <div className="relative w-12 h-12 rounded-xl overflow-hidden border border-ggd-orange/50 shrink-0">
-                <img src={attachedImage} alt="Preview" className="w-full h-full object-cover" />
-                <button 
-                  onClick={() => setAttachedImage(null)}
-                  className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-red-600 text-white flex items-center justify-center text-[8px]"
-                >
-                  <i className="fa-solid fa-xmark"></i>
-                </button>
+          {/* CLAUDE STYLE AGENT PERSONA SELECTOR */}
+          <div className="p-2 border-b border-slate-200 dark:border-white/10">
+            <div className="flex items-center justify-between px-2 py-1 text-[9px] font-black uppercase tracking-wider text-slate-400">
+              <span>Choose Agent</span>
+              <span className="text-ggd-orange">5 Personas</span>
+            </div>
+            <div className="grid grid-cols-5 gap-1 pt-1">
+              {CLAUDE_STYLE_AGENTS.map(agent => {
+                const isSelected = activeAgent.id === agent.id;
+                return (
+                  <button
+                    key={agent.id}
+                    type="button"
+                    onClick={() => {
+                      if (activeSession?.messages.length <= 1) {
+                        handleSwitchAgentForCurrentSession(agent.id);
+                      } else {
+                        handleCreateNewChat(agent.id);
+                      }
+                    }}
+                    title={`${agent.name} - ${agent.title}`}
+                    className={`py-1.5 px-1 rounded-xl flex flex-col items-center justify-center gap-1 transition-all text-center border cursor-pointer ${
+                      isSelected
+                        ? 'bg-gradient-to-br from-orange-500/20 to-amber-500/20 border-orange-500 text-orange-400 shadow-md scale-102'
+                        : themeMode === 'light'
+                        ? 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-600'
+                        : 'bg-white/5 hover:bg-white/10 border-white/5 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <i className={`fa-solid ${agent.icon} text-xs`}></i>
+                    <span className="text-[7.5px] font-black uppercase truncate max-w-full">
+                      {agent.shortName}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* CHAT THREADS LIST (Grouped & Scrollable) */}
+          <div className="flex-1 overflow-y-auto p-2 space-y-1 scrollbar-none">
+            <div className="px-2 py-1 text-[9px] font-black uppercase tracking-wider text-slate-400 flex items-center justify-between">
+              <span>Recent Chats</span>
+              <span>{filteredSessions.length}</span>
+            </div>
+
+            {filteredSessions.length === 0 ? (
+              <div className="p-4 text-center text-slate-400 text-xs font-medium">
+                <i className="fa-regular fa-comment-dots text-lg mb-1 block opacity-50"></i>
+                <p className="text-[10px]">No conversations found</p>
               </div>
-            )}
-            {attachedFile && (
-              <div className="relative px-3 py-2 rounded-xl bg-slate-800 border border-white/10 flex items-center gap-2 text-xs font-bold text-white shrink-0">
-                <i className="fa-solid fa-file-text text-ggd-orange"></i>
-                <span className="max-w-[120px] truncate text-[10px]">{attachedFile.name}</span>
-                <button 
-                  onClick={() => setAttachedFile(null)}
-                  className="w-4 h-4 rounded-full bg-red-600 text-white flex items-center justify-center text-[8px] ml-1"
-                >
-                  <i className="fa-solid fa-xmark"></i>
-                </button>
-              </div>
+            ) : (
+              filteredSessions.map(session => {
+                const isActive = session.id === activeSessionId;
+                const sessionAgent =
+                  CLAUDE_STYLE_AGENTS.find(a => a.id === session.agentId) || CLAUDE_STYLE_AGENTS[0];
+                const isRenaming = editingSessionId === session.id;
+
+                return (
+                  <div
+                    key={session.id}
+                    onClick={() => handleSwitchSession(session.id)}
+                    className={`group relative p-2.5 rounded-xl border flex items-center justify-between gap-2 transition-all cursor-pointer ${
+                      isActive
+                        ? themeMode === 'light'
+                          ? 'bg-orange-500/10 border-orange-400 text-slate-900 shadow-sm font-semibold'
+                          : 'bg-orange-500/15 border-orange-500/60 text-white shadow-md font-semibold'
+                        : themeMode === 'light'
+                        ? 'bg-slate-50/70 hover:bg-slate-100 border-slate-200/80 text-slate-700'
+                        : 'bg-white/[0.02] hover:bg-white/5 border-white/5 text-slate-300 hover:text-white'
+                    }`}
+                  >
+                    {/* Left: Agent Icon + Title */}
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <div
+                        className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] shrink-0 ${
+                          isActive
+                            ? 'bg-orange-500 text-white'
+                            : themeMode === 'light'
+                            ? 'bg-slate-200 text-slate-600'
+                            : 'bg-white/10 text-slate-400'
+                        }`}
+                      >
+                        <i className={`fa-solid ${sessionAgent.icon}`}></i>
+                      </div>
+
+                      {isRenaming ? (
+                        <input
+                          ref={renameInputRef}
+                          type="text"
+                          value={editingTitleText}
+                          onChange={e => setEditingTitleText(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') handleSaveRename(session.id);
+                            if (e.key === 'Escape') setEditingSessionId(null);
+                          }}
+                          onBlur={() => handleSaveRename(session.id)}
+                          onClick={e => e.stopPropagation()}
+                          className="w-full text-xs bg-transparent border-b border-orange-400 outline-none text-white py-0.5"
+                        />
+                      ) : (
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs truncate tracking-tight">{session.title}</p>
+                          <p className="text-[8.5px] text-slate-400 truncate flex items-center gap-1">
+                            <span>{sessionAgent.shortName}</span>
+                            <span>·</span>
+                            <span>{session.messages.length} msgs</span>
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Right: Hover Action Icons (Rename & Delete) */}
+                    <div
+                      className={`flex items-center gap-1 shrink-0 ${
+                        isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                      } transition-opacity`}
+                    >
+                      <button
+                        type="button"
+                        onClick={e => handleStartRename(e, session)}
+                        className="w-6 h-6 rounded-lg flex items-center justify-center text-slate-400 hover:text-orange-400 hover:bg-orange-500/10 transition-colors"
+                        title="Rename conversation"
+                      >
+                        <i className="fa-solid fa-pen text-[10px]"></i>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={e => handleDeleteSession(e, session.id)}
+                        className="w-6 h-6 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                        title="Delete conversation"
+                      >
+                        <i className="fa-solid fa-trash-can text-[10px]"></i>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
             )}
           </div>
+
+          {/* SIDEBAR FOOTER: LIVE VOICE & CLEAR ACTIONS */}
+          <div className="p-3 border-t border-slate-200 dark:border-white/10 space-y-2 bg-slate-950/40">
+            {onStartLiveAssistant && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (!isFullTab) onClose();
+                  onStartLiveAssistant();
+                }}
+                className="w-full py-2 px-3 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer"
+              >
+                <i className="fa-solid fa-phone text-xs animate-pulse text-purple-400"></i>
+                <span>Live Voice Call</span>
+              </button>
+            )}
+
+            <div className="flex items-center justify-between text-[9px] text-slate-500 pt-1">
+              <span>{sessions.length} Threads Total</span>
+              <button
+                type="button"
+                onClick={handleClearAllSessions}
+                className="hover:text-red-400 transition-colors cursor-pointer"
+              >
+                Clear All
+              </button>
+            </div>
+          </div>
+        </aside>
+
+        {/* Mobile Sidebar Backdrop Overlay */}
+        {isSidebarOpen && (
+          <div
+            className="lg:hidden fixed inset-0 z-20 bg-slate-950/70 backdrop-blur-sm"
+            onClick={() => setIsSidebarOpen(false)}
+          />
         )}
 
-        {/* ACTION SHEET / TOOLS POPOVER MENU */}
-        {isAddMenuOpen && (
-          <div className={`absolute bottom-20 left-4 right-4 z-[260] border rounded-3xl p-4 shadow-2xl animate-rise max-h-96 overflow-y-auto space-y-3 ${
-            themeMode === 'light' ? 'bg-white border-slate-200 text-slate-900' : 'bg-slate-900 border-white/15 text-white'
-          }`}>
-            <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-white/10">
-              <h4 className="text-xs font-black uppercase tracking-wider text-ggd-orange flex items-center gap-2">
-                <i className="fa-solid fa-plus-circle"></i>
-                <span>Add & Invoke AI Tools</span>
-              </h4>
-              <button 
-                onClick={() => setIsAddMenuOpen(false)}
-                className="w-6 h-6 rounded-full bg-slate-100 dark:bg-white/10 flex items-center justify-center text-xs text-slate-600 dark:text-white hover:bg-slate-200"
-              >
-                <i className="fa-solid fa-xmark"></i>
-              </button>
-            </div>
-
-            {/* UPLOAD ACTIONS */}
-            <div className="grid grid-cols-2 gap-2">
-              <button 
-                onClick={() => imageInputRef.current?.click()}
-                className={`p-3 rounded-2xl border flex items-center gap-2.5 text-left active:scale-95 transition-all ${
-                  themeMode === 'light' ? 'bg-slate-50 hover:bg-slate-100 border-slate-200' : 'bg-white/5 hover:bg-white/10 border-white/10'
-                }`}
-              >
-                <div className="w-8 h-8 rounded-xl bg-orange-500/20 text-ggd-orange flex items-center justify-center text-xs">
-                  <i className="fa-solid fa-image"></i>
-                </div>
-                <div>
-                  <p className={`text-[11px] font-bold ${themeMode === 'light' ? 'text-slate-900' : 'text-white'}`}>Upload Image</p>
-                  <p className="text-[8.5px] text-slate-400">Attach graphic/photo</p>
-                </div>
-              </button>
-
-              <button 
-                onClick={() => fileInputRef.current?.click()}
-                className={`p-3 rounded-2xl border flex items-center gap-2.5 text-left active:scale-95 transition-all ${
-                  themeMode === 'light' ? 'bg-slate-50 hover:bg-slate-100 border-slate-200' : 'bg-white/5 hover:bg-white/10 border-white/10'
-                }`}
-              >
-                <div className="w-8 h-8 rounded-xl bg-purple-500/20 text-purple-600 dark:text-purple-400 flex items-center justify-center text-xs">
-                  <i className="fa-solid fa-file-lines"></i>
-                </div>
-                <div>
-                  <p className={`text-[11px] font-bold ${themeMode === 'light' ? 'text-slate-900' : 'text-white'}`}>Upload File</p>
-                  <p className="text-[8.5px] text-slate-400">Script or doc text</p>
-                </div>
-              </button>
-            </div>
-
-            {/* DIRECT TOOLS LIBRARY LINK */}
-            <div className="pt-1">
+        {/* ================================================================= */}
+        {/* 2. MAIN CHAT AREA (Right of Left-Side Navigation)                 */}
+        {/* ================================================================= */}
+        <main className="flex-1 h-full flex flex-col min-w-0 relative overflow-hidden">
+          {/* MAIN CHAT TOP HEADER */}
+          <header
+            className={`p-3 sm:p-4 border-b flex items-center justify-between gap-3 shrink-0 ${
+              themeMode === 'light' ? 'bg-white border-slate-200' : 'bg-slate-950/80 border-white/10'
+            }`}
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              {/* SIDEBAR TOGGLE BUTTON (Like ChatGPT & Claude) */}
               <button
-                onClick={() => {
-                  setIsAddMenuOpen(false);
-                  appContext.setActiveTab('tools');
-                }}
-                className={`w-full p-3 rounded-2xl border flex items-center justify-between text-left transition-all active:scale-95 group shadow-lg ${
-                  themeMode === 'light'
-                    ? 'bg-emerald-50 hover:bg-emerald-100 border-emerald-200'
-                    : 'bg-gradient-to-r from-emerald-500/15 to-teal-500/15 hover:from-emerald-500/25 hover:to-teal-500/25 border-emerald-500/30'
+                type="button"
+                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                className={`p-2 rounded-xl border text-xs transition-all active:scale-95 cursor-pointer flex items-center justify-center ${
+                  isSidebarOpen
+                    ? 'bg-orange-500/10 border-orange-400/40 text-orange-400'
+                    : themeMode === 'light'
+                    ? 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700'
+                    : 'bg-white/5 hover:bg-white/10 border-white/10 text-white'
                 }`}
+                title={isSidebarOpen ? 'Collapse chat sidebar' : 'Open chat sidebar'}
               >
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center text-xs shrink-0 shadow-md">
-                    <i className="fa-solid fa-shapes"></i>
+                <i className="fa-solid fa-table-columns text-sm"></i>
+              </button>
+
+              {/* ACTIVE AGENT AVATAR & IDENTITY */}
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-9 h-9 rounded-xl overflow-hidden border border-orange-500/50 p-0.5 shadow-md bg-slate-900 shrink-0 relative">
+                  {activeAgent.id === 'vixora_coach' ? (
+                    <img
+                      src={vixoraAgentAvatar}
+                      alt="Vixora AI"
+                      className="w-full h-full object-cover rounded-lg"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <div
+                      className={`w-full h-full rounded-lg bg-gradient-to-tr ${activeAgent.gradient} flex items-center justify-center text-white text-xs`}
+                    >
+                      <i className={`fa-solid ${activeAgent.icon}`}></i>
+                    </div>
+                  )}
+                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-slate-900 rounded-full"></span>
+                </div>
+
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="text-xs sm:text-sm font-black uppercase tracking-tight truncate">
+                      {activeAgent.name}
+                    </h3>
+                    <span className="px-1.5 py-0.2 rounded-full text-[7.5px] font-black uppercase bg-orange-500/15 border border-orange-500/30 text-orange-400 shrink-0">
+                      {activeAgent.badge}
+                    </span>
+                  </div>
+                  <p className="text-[9px] text-slate-400 truncate max-w-[200px] sm:max-w-md font-medium">
+                    {activeSession?.title || activeAgent.tagline}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* HEADER RIGHT ACTIONS */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              {/* Agent Quick Switcher Dropdown Button */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setIsAgentMenuOpen(!isAgentMenuOpen)}
+                  className={`py-1.5 px-2.5 rounded-xl border text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer ${
+                    isAgentMenuOpen
+                      ? 'bg-orange-500 text-white border-orange-500'
+                      : themeMode === 'light'
+                      ? 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-800'
+                      : 'bg-white/5 hover:bg-white/10 border-white/10 text-slate-300'
+                  }`}
+                  title="Switch Claude / Vixora Agent"
+                >
+                  <i className={`fa-solid ${activeAgent.icon}`}></i>
+                  <span className="hidden sm:inline">Agent: {activeAgent.shortName}</span>
+                  <i className="fa-solid fa-chevron-down text-[8px]"></i>
+                </button>
+
+                {/* Agent Dropdown Menu */}
+                {isAgentMenuOpen && (
+                  <div
+                    className={`absolute right-0 top-full mt-2 w-64 rounded-2xl border shadow-2xl p-2 z-40 space-y-1 backdrop-blur-xl animate-rise ${
+                      themeMode === 'light'
+                        ? 'bg-white border-slate-200 text-slate-900'
+                        : 'bg-slate-900 border-white/15 text-white'
+                    }`}
+                  >
+                    <p className="text-[9px] font-black uppercase text-slate-400 px-2 py-1">
+                      Switch Claude AI Agent
+                    </p>
+                    {CLAUDE_STYLE_AGENTS.map(agent => (
+                      <button
+                        key={agent.id}
+                        type="button"
+                        onClick={() => handleSwitchAgentForCurrentSession(agent.id)}
+                        className={`w-full p-2 rounded-xl text-left flex items-start gap-2.5 transition-all cursor-pointer ${
+                          activeAgent.id === agent.id
+                            ? 'bg-orange-500/15 border border-orange-500/40 text-orange-400'
+                            : themeMode === 'light'
+                            ? 'hover:bg-slate-100 text-slate-700'
+                            : 'hover:bg-white/5 text-slate-300'
+                        }`}
+                      >
+                        <div
+                          className={`w-6 h-6 rounded-lg bg-gradient-to-tr ${agent.gradient} text-white flex items-center justify-center text-[10px] shrink-0 mt-0.5`}
+                        >
+                          <i className={`fa-solid ${agent.icon}`}></i>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[11px] font-black uppercase">{agent.name}</p>
+                          <p className="text-[8.5px] text-slate-400 line-clamp-1">{agent.tagline}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Start New Chat quick button */}
+              <button
+                type="button"
+                onClick={() => handleCreateNewChat()}
+                className={`p-2 rounded-xl border text-xs transition-all active:scale-95 cursor-pointer ${
+                  themeMode === 'light'
+                    ? 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700'
+                    : 'bg-white/5 hover:bg-white/10 border-white/10 text-white'
+                }`}
+                title="Start a new chat thread"
+              >
+                <i className="fa-solid fa-pen-to-square"></i>
+              </button>
+
+              {/* Close Drawer button if not in full tab */}
+              {!isFullTab && (
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className={`w-8 h-8 rounded-xl flex items-center justify-center border transition-all cursor-pointer ${
+                    themeMode === 'light'
+                      ? 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700'
+                      : 'bg-white/5 hover:bg-white/10 border-white/10 text-white'
+                  }`}
+                  title="Close chat modal"
+                >
+                  <i className="fa-solid fa-xmark text-xs"></i>
+                </button>
+              )}
+            </div>
+          </header>
+
+          {/* CHAT MESSAGES SCROLL AREA */}
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 scrollbar-none">
+            {/* EMPTY STATE / SUGGESTED STARTERS (When starting a new conversation) */}
+            {messages.length <= 1 && (
+              <div className="max-w-2xl mx-auto py-6 space-y-6 animate-fade-in text-center">
+                {/* Agent Hero Banner */}
+                <div className="space-y-3">
+                  <div
+                    className={`w-16 h-16 rounded-3xl mx-auto p-1 bg-gradient-to-tr ${activeAgent.gradient} shadow-xl flex items-center justify-center text-white`}
+                  >
+                    {activeAgent.id === 'vixora_coach' ? (
+                      <img
+                        src={vixoraAgentAvatar}
+                        alt="Vixora"
+                        className="w-full h-full object-cover rounded-[20px]"
+                      />
+                    ) : (
+                      <i className={`fa-solid ${activeAgent.icon} text-2xl`}></i>
+                    )}
                   </div>
                   <div>
-                    <p className={`text-[11px] font-black group-hover:text-emerald-500 transition-colors ${themeMode === 'light' ? 'text-slate-900' : 'text-white'}`}>Tools Library</p>
-                    <p className="text-[8.5px] text-slate-400">Open full suite of 12 AI creation tools</p>
+                    <h2 className="text-lg sm:text-xl font-black uppercase tracking-tight">
+                      {activeAgent.name}
+                    </h2>
+                    <p className="text-xs text-ggd-orange font-bold uppercase tracking-wider">
+                      {activeAgent.title}
+                    </p>
+                    <p
+                      className={`text-xs mt-1.5 max-w-md mx-auto leading-relaxed ${
+                        themeMode === 'light' ? 'text-slate-600' : 'text-slate-400'
+                      }`}
+                    >
+                      {activeAgent.tagline}
+                    </p>
                   </div>
                 </div>
-                <i className="fa-solid fa-arrow-right text-xs text-emerald-500 group-hover:translate-x-1 transition-transform"></i>
-              </button>
-            </div>
-          </div>
-        )}
 
-        {/* HIDDEN FILE INPUTS */}
-        <input 
-          ref={imageInputRef}
-          type="file" 
-          accept="image/*"
-          onChange={handleImageSelect}
-          className="hidden"
-        />
-        <input 
-          ref={fileInputRef}
-          type="file" 
-          accept=".txt,.pdf,.md,.doc,.docx"
-          onChange={handleFileSelect}
-          className="hidden"
-        />
-
-        {/* FIXED BOTTOM INPUT BAR */}
-        <div className={`p-3 sm:p-4 border-t ${
-          themeMode === 'light' ? 'bg-white border-slate-200' : 'bg-slate-950 border-white/10'
-        }`}>
-          <form 
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleSendMessage();
-            }}
-            className="flex items-center gap-2 max-w-3xl mx-auto"
-          >
-            {/* ADD BUTTON (+) FOR ACTION SHEET */}
-            <button
-              type="button"
-              onClick={() => setIsAddMenuOpen(!isAddMenuOpen)}
-              title="Add Image, File, or Tool"
-              className={`w-11 h-11 rounded-2xl flex items-center justify-center border text-base transition-all shrink-0 active:scale-90 ${
-                isAddMenuOpen
-                  ? 'bg-ggd-orange border-ggd-orange text-white rotate-45'
-                  : themeMode === 'light'
-                  ? 'bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200'
-                  : 'bg-white/10 border-white/15 text-white hover:bg-white/20'
-              }`}
-            >
-              <i className="fa-solid fa-plus"></i>
-            </button>
-
-            {/* LIVE VOICE SESSION BUTTON */}
-            <button
-              type="button"
-              onClick={() => {
-                if (!isFullTab) onClose();
-                if (onStartLiveAssistant) {
-                  onStartLiveAssistant();
-                } else {
-                  appContext.setActiveTab('studio');
-                }
-              }}
-              title="Start Live Voice Assistant Call"
-              className="px-3.5 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-black uppercase text-[10px] tracking-wider flex items-center gap-1.5 shadow-lg active:scale-90 shrink-0 border border-amber-300/40 cursor-pointer"
-            >
-              <i className="fa-solid fa-microphone-lines text-xs animate-pulse"></i>
-              <span className="hidden sm:inline">Live Call</span>
-            </button>
-
-            {/* INPUT FIELD */}
-            <input 
-              type="text" 
-              value={inputQuery}
-              onChange={(e) => setInputQuery(e.target.value)}
-              placeholder={isProcessing ? "Type to interrupt & ask something new..." : "Ask Vixora anything or type a command..."}
-              className={`flex-1 px-4 py-3 rounded-2xl border text-xs font-medium outline-none transition-all ${
-                themeMode === 'light'
-                  ? 'bg-slate-100 border-slate-300 text-slate-900 focus:bg-white focus:border-ggd-orange'
-                  : 'bg-white/5 border-white/10 text-white focus:bg-slate-900 focus:border-ggd-orange'
-              }`}
-            />
-
-            {/* STOP BUTTON OR SEND BUTTON */}
-            {isProcessing ? (
-              <button 
-                type="button"
-                onClick={interruptAi}
-                title="Interrupt / Stop AI response"
-                className="px-4 py-3.5 rounded-2xl bg-red-600 hover:bg-red-500 text-white text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg active:scale-90 animate-pulse shrink-0 cursor-pointer border border-red-400/40"
-              >
-                <i className="fa-solid fa-hand text-sm"></i>
-                <span className="hidden sm:inline text-[10px]">Stop</span>
-              </button>
-            ) : (
-              <button 
-                type="submit"
-                disabled={!inputQuery.trim() && !attachedImage && !attachedFile}
-                className="btn-3d btn-3d-orange px-4 py-3.5 rounded-2xl text-xs tracking-wider disabled:opacity-50 shrink-0 shadow-lg cursor-pointer"
-              >
-                <i className="fa-solid fa-paper-plane"></i>
-              </button>
+                {/* Quick Starter Prompt Cards (ChatGPT / Claude style) */}
+                <div className="space-y-2 text-left">
+                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 text-center">
+                    Suggested Creator Prompts
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {activeAgent.suggestedPrompts.map((starter, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => handleSendMessage(starter.prompt)}
+                        className={`p-3.5 rounded-2xl border text-left flex items-start gap-3 transition-all hover:scale-[1.01] active:scale-98 cursor-pointer shadow-sm group ${
+                          themeMode === 'light'
+                            ? 'bg-white hover:bg-orange-50/50 border-slate-200 hover:border-orange-300'
+                            : 'bg-white/[0.03] hover:bg-orange-500/10 border-white/10 hover:border-orange-500/40'
+                        }`}
+                      >
+                        <div
+                          className={`w-8 h-8 rounded-xl bg-orange-500/15 text-orange-400 flex items-center justify-center text-xs shrink-0 mt-0.5 group-hover:bg-orange-500 group-hover:text-white transition-colors`}
+                        >
+                          <i className={`fa-solid ${starter.icon}`}></i>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-black uppercase tracking-tight text-white group-hover:text-orange-400 transition-colors">
+                            {starter.title}
+                          </p>
+                          <p className="text-[10px] text-slate-400 line-clamp-2 mt-0.5 leading-snug">
+                            {starter.desc}
+                          </p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
             )}
-          </form>
-          <p className="text-[8.5px] text-slate-500 font-semibold text-center mt-2">
-            Vixora controls video production, voices, & scripts using AI function calling.
-          </p>
-        </div>
+
+            {/* MESSAGE BUBBLES */}
+            {messages.map(msg => {
+              const isUser = msg.sender === 'user';
+              const msgAgent =
+                CLAUDE_STYLE_AGENTS.find(a => a.id === msg.agentId) || activeAgent;
+
+              return (
+                <div
+                  key={msg.id}
+                  className={`flex gap-3 max-w-3xl ${isUser ? 'ml-auto flex-row-reverse' : 'mr-auto'} group`}
+                >
+                  {/* Sender Avatar */}
+                  <div className="w-8 h-8 rounded-xl overflow-hidden shrink-0 mt-1 shadow-md">
+                    {isUser ? (
+                      <div className="w-full h-full bg-gradient-to-tr from-slate-700 to-slate-900 border border-white/20 text-white flex items-center justify-center text-xs font-black uppercase">
+                        {appContext.userFullName?.charAt(0) || 'U'}
+                      </div>
+                    ) : msgAgent.id === 'vixora_coach' ? (
+                      <img
+                        src={vixoraAgentAvatar}
+                        alt="Vixora"
+                        className="w-full h-full object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <div
+                        className={`w-full h-full bg-gradient-to-tr ${msgAgent.gradient} text-white flex items-center justify-center text-xs`}
+                      >
+                        <i className={`fa-solid ${msgAgent.icon}`}></i>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Message Bubble Container */}
+                  <div className={`space-y-1.5 max-w-[85%] sm:max-w-xl text-left ${isUser ? 'items-end' : 'items-start'}`}>
+                    {/* Name & Timestamp Header */}
+                    <div className={`flex items-center gap-2 text-[9px] ${isUser ? 'justify-end' : 'justify-start'}`}>
+                      <span className="font-black uppercase text-slate-400">
+                        {isUser ? appContext.userFullName || 'You' : msgAgent.name}
+                      </span>
+                      <span className="text-slate-500">{msg.timestamp}</span>
+                    </div>
+
+                    {/* Bubble Content */}
+                    <div
+                      className={`p-3.5 sm:p-4 rounded-2xl text-xs sm:text-[13px] leading-relaxed shadow-lg relative ${
+                        isUser
+                          ? 'bg-gradient-to-r from-orange-600 to-amber-600 text-white rounded-tr-none'
+                          : themeMode === 'light'
+                          ? 'bg-white border border-slate-200 text-slate-900 rounded-tl-none'
+                          : 'bg-slate-950/80 border border-white/10 text-slate-100 rounded-tl-none'
+                      }`}
+                    >
+                      {/* Attached Image Preview */}
+                      {msg.imageUrl && (
+                        <div className="mb-2.5 rounded-xl overflow-hidden border border-white/10 max-w-xs">
+                          <img
+                            src={msg.imageUrl}
+                            alt="Attached"
+                            className="w-full h-auto object-cover max-h-48"
+                          />
+                        </div>
+                      )}
+
+                      {/* Attached File Badge */}
+                      {msg.attachedFile && (
+                        <div className="mb-2 px-2.5 py-1.5 rounded-lg bg-black/20 border border-white/10 inline-flex items-center gap-1.5 text-[10px] font-bold">
+                          <i className="fa-solid fa-file-text text-ggd-orange"></i>
+                          <span>{msg.attachedFile.name}</span>
+                        </div>
+                      )}
+
+                      {/* Thinking spinner */}
+                      {msg.isThinking ? (
+                        <div className="flex items-center gap-2 text-slate-400 py-1">
+                          <i className="fa-solid fa-circle-notch animate-spin text-orange-400"></i>
+                          <span>{msg.text}</span>
+                        </div>
+                      ) : (
+                        <div className="whitespace-pre-wrap select-text font-normal">
+                          {msg.text}
+                        </div>
+                      )}
+
+                      {/* Action Badge if Function Called */}
+                      {msg.actionBadge && (
+                        <div className="mt-2.5 pt-2 border-t border-white/10 flex items-center justify-between gap-2">
+                          <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[9px] font-black uppercase flex items-center gap-1.5">
+                            <i className="fa-solid fa-bolt"></i>
+                            <span>{msg.actionBadge}</span>
+                          </span>
+                          {msg.navigatedTab && (
+                            <button
+                              type="button"
+                              onClick={() => appContext.setActiveTab(msg.navigatedTab!)}
+                              className="text-[9px] font-bold text-orange-400 hover:underline flex items-center gap-1"
+                            >
+                              <span>View Tab</span>
+                              <i className="fa-solid fa-arrow-right text-[8px]"></i>
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Copy action on hover */}
+                    {!msg.isThinking && (
+                      <div className={`flex items-center gap-2 ${isUser ? 'justify-end' : 'justify-start'}`}>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyMessage(msg)}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] text-slate-400 hover:text-white flex items-center gap-1 p-1"
+                          title="Copy message"
+                        >
+                          <i className={`fa-solid ${copiedMsgId === msg.id ? 'fa-check text-emerald-400' : 'fa-copy'}`}></i>
+                          <span className="text-[8.5px]">{copiedMsgId === msg.id ? 'Copied' : 'Copy'}</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* ATTACHED ASSETS PREVIEWS */}
+          {(attachedImage || attachedFile) && (
+            <div className="px-4 py-2 bg-slate-950/60 border-t border-white/10 flex items-center gap-3 overflow-x-auto">
+              {attachedImage && (
+                <div className="relative w-12 h-12 rounded-xl overflow-hidden border border-orange-500/50 shrink-0">
+                  <img src={attachedImage} alt="Preview" className="w-full h-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => setAttachedImage(null)}
+                    className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-red-600 text-white flex items-center justify-center text-[8px]"
+                  >
+                    <i className="fa-solid fa-xmark"></i>
+                  </button>
+                </div>
+              )}
+              {attachedFile && (
+                <div className="relative px-3 py-2 rounded-xl bg-slate-800 border border-white/10 flex items-center gap-2 text-xs font-bold text-white shrink-0">
+                  <i className="fa-solid fa-file-text text-ggd-orange"></i>
+                  <span className="max-w-[140px] truncate text-[10px]">{attachedFile.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => setAttachedFile(null)}
+                    className="w-4 h-4 rounded-full bg-red-600 text-white flex items-center justify-center text-[8px] ml-1"
+                  >
+                    <i className="fa-solid fa-xmark"></i>
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ACTION SHEET / TOOLS POPOVER MENU */}
+          {isAddMenuOpen && (
+            <div
+              className={`absolute bottom-20 left-4 right-4 z-40 border rounded-3xl p-4 shadow-2xl animate-rise max-h-96 overflow-y-auto space-y-3 ${
+                themeMode === 'light'
+                  ? 'bg-white border-slate-200 text-slate-900'
+                  : 'bg-slate-900 border-white/15 text-white'
+              }`}
+            >
+              <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-white/10">
+                <h4 className="text-xs font-black uppercase tracking-wider text-ggd-orange flex items-center gap-2">
+                  <i className="fa-solid fa-plus-circle"></i>
+                  <span>Add Assets & Invoke AI Tools</span>
+                </h4>
+                <button
+                  type="button"
+                  onClick={() => setIsAddMenuOpen(false)}
+                  className="w-6 h-6 rounded-full bg-slate-100 dark:bg-white/10 flex items-center justify-center text-xs text-slate-600 dark:text-white hover:bg-slate-200"
+                >
+                  <i className="fa-solid fa-xmark"></i>
+                </button>
+              </div>
+
+              {/* UPLOAD ACTIONS */}
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => imageInputRef.current?.click()}
+                  className={`p-3 rounded-2xl border flex items-center gap-2.5 text-left active:scale-95 transition-all ${
+                    themeMode === 'light'
+                      ? 'bg-slate-50 hover:bg-slate-100 border-slate-200'
+                      : 'bg-white/5 hover:bg-white/10 border-white/10'
+                  }`}
+                >
+                  <div className="w-8 h-8 rounded-xl bg-orange-500/20 text-ggd-orange flex items-center justify-center text-xs">
+                    <i className="fa-solid fa-image"></i>
+                  </div>
+                  <div>
+                    <p className={`text-[11px] font-bold ${themeMode === 'light' ? 'text-slate-900' : 'text-white'}`}>
+                      Upload Image
+                    </p>
+                    <p className="text-[8.5px] text-slate-400">Attach photo/graphic</p>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`p-3 rounded-2xl border flex items-center gap-2.5 text-left active:scale-95 transition-all ${
+                    themeMode === 'light'
+                      ? 'bg-slate-50 hover:bg-slate-100 border-slate-200'
+                      : 'bg-white/5 hover:bg-white/10 border-white/10'
+                  }`}
+                >
+                  <div className="w-8 h-8 rounded-xl bg-purple-500/20 text-purple-600 dark:text-purple-400 flex items-center justify-center text-xs">
+                    <i className="fa-solid fa-file-lines"></i>
+                  </div>
+                  <div>
+                    <p className={`text-[11px] font-bold ${themeMode === 'light' ? 'text-slate-900' : 'text-white'}`}>
+                      Upload File
+                    </p>
+                    <p className="text-[8.5px] text-slate-400">Script or doc text</p>
+                  </div>
+                </button>
+              </div>
+
+              {/* TOOLS LIBRARY LINK */}
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAddMenuOpen(false);
+                    appContext.setActiveTab('tools');
+                  }}
+                  className={`w-full p-3 rounded-2xl border flex items-center justify-between text-left transition-all active:scale-95 group shadow-lg ${
+                    themeMode === 'light'
+                      ? 'bg-emerald-50 hover:bg-emerald-100 border-emerald-200'
+                      : 'bg-gradient-to-r from-emerald-500/15 to-teal-500/15 hover:from-emerald-500/25 hover:to-teal-500/25 border-emerald-500/30'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center text-xs shrink-0 shadow-md">
+                      <i className="fa-solid fa-shapes"></i>
+                    </div>
+                    <div>
+                      <p
+                        className={`text-[11px] font-black group-hover:text-emerald-500 transition-colors ${
+                          themeMode === 'light' ? 'text-slate-900' : 'text-white'
+                        }`}
+                      >
+                        Tools Library
+                      </p>
+                      <p className="text-[8.5px] text-slate-400">Open full suite of 12 AI creation tools</p>
+                    </div>
+                  </div>
+                  <i className="fa-solid fa-arrow-right text-xs text-emerald-500 group-hover:translate-x-1 transition-transform"></i>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* HIDDEN FILE INPUTS */}
+          <input
+            ref={imageInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleImageSelect}
+            className="hidden"
+          />
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".txt,.pdf,.md,.doc,.docx"
+            onChange={handleFileSelect}
+            className="hidden"
+          />
+
+          {/* BOTTOM CHAT INPUT BAR (ChatGPT & Claude Style) */}
+          <footer
+            className={`p-2.5 sm:p-4 border-t shrink-0 sticky bottom-0 z-20 shadow-xl backdrop-blur-xl pb-4 sm:pb-4 ${
+              themeMode === 'light' ? 'bg-white/95 border-slate-200' : 'bg-slate-950/95 border-white/10'
+            }`}
+          >
+            <form
+              onSubmit={e => {
+                e.preventDefault();
+                handleSendMessage();
+              }}
+              className="flex items-center gap-1.5 sm:gap-2 max-w-4xl mx-auto w-full"
+            >
+              {/* + MENU FOR TOOLS & ATTACHMENTS */}
+              <button
+                type="button"
+                onClick={() => setIsAddMenuOpen(!isAddMenuOpen)}
+                title="Add Image, File, or Tool"
+                className={`w-10 h-10 sm:w-11 sm:h-11 rounded-2xl flex items-center justify-center border text-base transition-all shrink-0 active:scale-90 cursor-pointer ${
+                  isAddMenuOpen
+                    ? 'bg-ggd-orange border-ggd-orange text-white rotate-45'
+                    : themeMode === 'light'
+                    ? 'bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200'
+                    : 'bg-white/10 border-white/15 text-white hover:bg-white/20'
+                }`}
+              >
+                <i className="fa-solid fa-plus"></i>
+              </button>
+
+              {/* LIVE VOICE CALL BUTTON */}
+              {onStartLiveAssistant && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!isFullTab) onClose();
+                    onStartLiveAssistant();
+                  }}
+                  title="Start Live Voice Assistant Call"
+                  className="px-2.5 sm:px-3 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-black uppercase text-[10px] tracking-wider flex items-center justify-center gap-1 shadow-md active:scale-90 shrink-0 border border-amber-300/40 cursor-pointer"
+                >
+                  <i className="fa-solid fa-microphone-lines text-xs animate-pulse"></i>
+                  <span className="hidden md:inline">Call</span>
+                </button>
+              )}
+
+              {/* TEXT INPUT FIELD */}
+              <input
+                type="text"
+                value={inputQuery}
+                onChange={e => setInputQuery(e.target.value)}
+                placeholder={
+                  isProcessing
+                    ? 'Type to interrupt and ask something new...'
+                    : `Message ${activeAgent.name}...`
+                }
+                className={`min-w-0 flex-1 px-3 sm:px-4 py-2.5 sm:py-3 rounded-2xl border text-xs sm:text-[13px] font-medium outline-none transition-all ${
+                  themeMode === 'light'
+                    ? 'bg-slate-100 border-slate-300 text-slate-900 focus:bg-white focus:border-ggd-orange'
+                    : 'bg-white/5 border-white/10 text-white focus:bg-slate-900 focus:border-ggd-orange'
+                }`}
+              />
+
+              {/* STOP BUTTON OR SEND BUTTON */}
+              {isProcessing ? (
+                <button
+                  type="button"
+                  onClick={interruptAi}
+                  title="Interrupt AI response"
+                  className="px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-2xl bg-red-600 hover:bg-red-500 text-white text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-lg active:scale-95 animate-pulse shrink-0 cursor-pointer border border-red-400/40 min-w-[72px]"
+                >
+                  <i className="fa-solid fa-hand text-sm"></i>
+                  <span className="text-[10px] font-black uppercase">Stop</span>
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  disabled={!inputQuery.trim() && !attachedImage && !attachedFile}
+                  title="Send message"
+                  className={`px-3.5 sm:px-5 py-2.5 sm:py-3 rounded-2xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 shrink-0 shadow-lg transition-all min-w-[72px] sm:min-w-[85px] cursor-pointer ${
+                    !inputQuery.trim() && !attachedImage && !attachedFile
+                      ? themeMode === 'light'
+                        ? 'bg-orange-100 text-orange-600 border border-orange-300 opacity-90 cursor-not-allowed'
+                        : 'bg-orange-500/20 text-orange-300 border border-orange-500/40 opacity-90 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 hover:from-orange-400 hover:to-amber-400 text-white shadow-orange-500/30 border border-orange-300 active:scale-95'
+                  }`}
+                >
+                  <span className="font-extrabold text-[11px] sm:text-xs">Send</span>
+                  <i className="fa-solid fa-paper-plane text-xs"></i>
+                </button>
+              )}
+            </form>
+            <div className="flex items-center justify-between text-[8px] text-slate-500 max-w-4xl mx-auto mt-2 px-1">
+              <span>Claude & ChatGPT style multi-thread workspace</span>
+              <span>Agent: {activeAgent.name}</span>
+            </div>
+          </footer>
+        </main>
       </div>
     </div>
   );

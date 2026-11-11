@@ -1424,7 +1424,27 @@ export const VideoSequencer: React.FC<VideoSequencerProps> = ({
   // --- AUTOMATIC CHROME RECORDER & EXPORT BLOB COMPILE CLIENT-SIDE ---
 
   const handleCompileVideo = async () => {
-    if (segments.length === 0) return;
+    let activeSegments = segments;
+    if (activeSegments.length === 0) {
+      const defaultText = scriptText || "Stop scrolling if you want to master high-impact growth. The secret to success is consistent execution and powerful content creation.";
+      const defaultWords = defaultText.split(' ').map((w, idx) => ({ text: w, start: idx * 0.4, end: (idx + 1) * 0.4, index: idx }));
+      const defaultSeg: Segment = {
+        id: 1,
+        text: defaultText,
+        words: defaultWords,
+        start: 0,
+        end: Math.max(10, defaultWords.length * 0.4),
+        videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-digital-animation-of-screens-with-code-31910-large.mp4',
+        videoId: 'default_1',
+        thumbnail: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=800&q=80',
+        mediaType: 'video',
+        title: 'Vixora Studio Production'
+      };
+      activeSegments = [defaultSeg];
+      setSegments(activeSegments);
+      setTotalDuration(defaultSeg.end);
+    }
+
     setIsCompiling(true);
     setCompileProgress(0);
     setCompiledBlobUrl(null);

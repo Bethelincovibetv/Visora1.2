@@ -700,14 +700,6 @@ Return JSON in this EXACT schema:
   app.post('/api/gemini/generate', handleGeminiGenerate);
   app.post('/api/public/v1/gemini/generate', handleGeminiGenerate);
   app.post('/gemini/generate', handleGeminiGenerate);
-    } catch (err: any) {
-      console.error('[Audio TTS General Error]:', err);
-      return res.status(500).json({
-        ok: false,
-        error: err?.message || 'Voiceover synthesis failed'
-      });
-    }
-  };
 
   app.post('/api/fish-audio/tts', handleAudioTTS);
   app.post('/api/public/v1/audio/tts', handleAudioTTS);

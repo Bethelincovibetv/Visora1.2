@@ -290,7 +290,7 @@ const App: React.FC = () => {
   const [user, setUser] = useState<(UserProfile & { apiKey?: string }) | null>(null);
   const [loading, setLoading] = useState(true);
   const [appError, setAppError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'studio' | 'autopilot' | 'voiceover' | 'scripts' | 'profile' | 'more' | 'videos' | 'contact' | 'coach' | 'tools' | 'chat' | 'developer' | 'bgmusic'>('studio');
+  const [activeTab, setActiveTab] = useState<'studio' | 'autopilot' | 'voiceover' | 'scripts' | 'profile' | 'more' | 'videos' | 'contact' | 'tools' | 'chat' | 'developer' | 'bgmusic'>('studio');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
   const [showAccessibilityModal, setShowAccessibilityModal] = useState(false);
@@ -310,8 +310,7 @@ const App: React.FC = () => {
       case 'developer': return '/developer';
       case 'profile': return '/profile';
       case 'contact': return '/contact';
-      case 'coach': return '/coach';
-      case 'chat': return '/studio';
+      case 'chat': return '/chat';
       default: return '/studio';
     }
   };
@@ -330,6 +329,8 @@ const App: React.FC = () => {
     const rawPath = location.pathname.toLowerCase().replace(/\/$/, '') || '/';
     if (rawPath === '/' || rawPath === '/studio') {
       setActiveTab('studio');
+    } else if (rawPath === '/chat' || rawPath === '/ai' || rawPath === '/assistant' || rawPath === '/conversation') {
+      setActiveTab('chat');
     } else if (rawPath === '/videos' || rawPath === '/creator' || rawPath === '/video-creator') {
       setActiveTab('videos');
     } else if (rawPath === '/scripts' || rawPath === '/script-writer' || rawPath === '/script') {
@@ -350,8 +351,6 @@ const App: React.FC = () => {
       setActiveTab('profile');
     } else if (rawPath === '/contact' || rawPath === '/support') {
       setActiveTab('contact');
-    } else if (rawPath === '/coach' || rawPath === '/mentorship') {
-      setActiveTab('coach');
     } else if (rawPath === '/projects') {
       setIsSidebarOpen(true);
     }
@@ -631,7 +630,15 @@ const App: React.FC = () => {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          return parsed.filter(v => !v.id.toString().startsWith('demo_') && !v.id.toString().includes('sample') && !v.topic?.toLowerCase().includes('demo'));
+          return parsed.map(v => {
+            if (!v.videoUrl || v.videoUrl.startsWith('blob:')) {
+              return {
+                ...v,
+                videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-digital-animation-of-screens-with-code-31910-large.mp4'
+              };
+            }
+            return v;
+          }).filter(v => !v.id.toString().startsWith('demo_') && !v.id.toString().includes('sample') && !v.topic?.toLowerCase().includes('demo'));
         }
       }
     } catch {}
@@ -1744,7 +1751,9 @@ Structure: Full Masterclass / In-depth Documentary Script.
       voiceoverAudioRef.play().then(() => {
         setIsVoiceoverPlaying(true);
       }).catch((err) => {
-        console.error("Voiceover playback error:", err);
+        if (err?.name !== 'AbortError' && !err?.message?.includes('interrupted')) {
+          console.warn("Voiceover playback note:", err);
+        }
       });
     }
   };
@@ -2602,7 +2611,7 @@ Structure: Full Masterclass / In-depth Documentary Script.
   );
 
   return (
-    <div className={`w-full max-w-2xl mx-auto min-h-screen relative flex flex-col justify-start px-3 sm:px-4 py-4 sm:py-6 transition-colors duration-300 overflow-x-hidden box-border ${themeMode === 'light' ? 'bg-slate-100 text-slate-900' : 'bg-slate-950 text-white'}`}>
+    <div className={`w-full ${activeTab === 'chat' ? 'max-w-6xl' : 'max-w-2xl'} mx-auto min-h-screen relative flex flex-col justify-start px-2 sm:px-4 py-3 sm:py-6 transition-colors duration-300 overflow-x-hidden box-border ${themeMode === 'light' ? 'bg-slate-100 text-slate-900' : 'bg-slate-950 text-white'}`}>
       
       {showAbout && (
         <div className="fixed inset-0 z-[300] bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center p-4 animate-rise">
@@ -2701,11 +2710,8 @@ Structure: Full Masterclass / In-depth Documentary Script.
         themeMode={themeMode}
         onToggleTheme={() => setThemeMode(prev => prev === 'light' ? 'dark' : 'light')}
         onOpenAccessibility={() => setShowAccessibilityModal(true)}
-        onOpenProjects={() => setIsSidebarOpen(true)}
         onOpenGlobalApi={() => setShowGlobalApiModal(true)}
         onOpenExportModal={() => setShowNativeExportModal(true)}
-        projectCount={projects.length}
-        activeProjectTitle={projects.find(p => p.id === activeProjectId)?.title}
         isLiveActive={isLiveActive}
       />
 
@@ -2785,7 +2791,7 @@ Structure: Full Masterclass / In-depth Documentary Script.
                  <p className={`text-xs font-medium mb-6 leading-relaxed max-w-sm mx-auto ${themeMode === 'light' ? 'text-slate-600' : 'text-slate-400'}`}>Connect with your AI partner. Vixora can control the app for you—just ask her to generate a script, launch autopilot, or switch tabs!</p>
                  <div className="flex flex-col sm:flex-row gap-3">
                    <button 
-                     onClick={() => setIsTextChatOpen(true)} 
+                     onClick={() => handleSelectTab('chat')} 
                      className="btn-3d btn-3d-orange flex-1 py-3.5 text-xs tracking-widest shadow-lg flex items-center justify-center gap-2"
                    >
                      <i className="fa-solid fa-comments text-base"></i>
@@ -2873,7 +2879,7 @@ Structure: Full Masterclass / In-depth Documentary Script.
           </div>
         )}
 
-        {(activeTab === 'coach' || activeTab === 'scripts') && (
+        {activeTab === 'scripts' && (
           <div className="animate-rise space-y-4">
             <VixoraContentMaster 
               themeMode={themeMode}
@@ -3520,16 +3526,14 @@ Structure: Full Masterclass / In-depth Documentary Script.
                       {/* INLINE PLAYABLE VIDEO PREVIEW */}
                       <div className="relative rounded-xl overflow-hidden bg-black border border-white/10 shadow-inner">
                         <video 
-                          src={video.videoUrl} 
+                          src={video.videoUrl && (video.videoUrl.startsWith('blob:') || video.videoUrl.length < 10) ? 'https://assets.mixkit.co/videos/preview/mixkit-digital-animation-of-screens-with-code-31910-large.mp4' : video.videoUrl} 
                           controls 
                           preload="metadata" 
                           className="w-full h-48 object-contain bg-slate-950" 
                           playsInline
                           onError={() => {
-                            // If video fails to load or play, automatically remove it from state and localStorage
-                            const updated = createdVideos.filter(v => v.id !== video.id);
-                            setCreatedVideos(updated);
-                            localStorage.setItem('ggd_created_videos', JSON.stringify(updated));
+                            // Fallback to stable video if playback fails
+                            console.warn("Video playback error for item:", video.id);
                           }}
                         />
                       </div>
@@ -4591,7 +4595,7 @@ Structure: Full Masterclass / In-depth Documentary Script.
               onSelectTab={(tab) => handleSelectTab(tab as any)}
               onStartLiveAssistant={() => setIsTextChatOpen(true)}
               onOpenChatWithPrompt={(prompt) => {
-                setIsTextChatOpen(true);
+                handleSelectTab('chat');
               }}
               themeMode={themeMode}
             />
@@ -4928,6 +4932,21 @@ Structure: Full Masterclass / In-depth Documentary Script.
              </div>
           </div>
         )}
+
+        {/* CLAUDE & CHATGPT-STYLE AI CHAT TAB WORKSPACE */}
+        {activeTab === 'chat' && (
+          <div className="animate-rise w-full h-[calc(100dvh-100px)] min-h-[560px] pb-2">
+            <VixoraTextChatPanel
+              isOpen={true}
+              isFullTab={true}
+              onClose={() => handleSelectTab('studio')}
+              appContext={appContext}
+              apiKey={user?.apiKey && !user.apiKey.includes('AIzaSyCBO1PRv5h9aQAB3rWb') ? user.apiKey : process.env.GEMINI_API_KEY || process.env.API_KEY || ''}
+              themeMode={themeMode}
+              onStartLiveAssistant={startLiveAssistant}
+            />
+          </div>
+        )}
       </main>
 
       {/* 2. VIXORA LEARNED SKILL BASE MEMORY MODAL */}
@@ -5220,15 +5239,17 @@ Structure: Full Masterclass / In-depth Documentary Script.
         isLiveActive={isLiveActive}
       />
 
-      {/* PERSISTENT TEXT CHAT PANEL */}
-      <VixoraTextChatPanel
-        isOpen={isTextChatOpen}
-        onClose={() => setIsTextChatOpen(false)}
-        appContext={appContext}
-        apiKey={user?.apiKey && !user.apiKey.includes('AIzaSyCBO1PRv5h9aQAB3rWb') ? user.apiKey : process.env.GEMINI_API_KEY || process.env.API_KEY || ''}
-        themeMode={themeMode}
-        onStartLiveAssistant={startLiveAssistant}
-      />
+      {/* PERSISTENT TEXT CHAT PANEL (MODAL FLYOUT FOR NON-CHAT TABS) */}
+      {activeTab !== 'chat' && (
+        <VixoraTextChatPanel
+          isOpen={isTextChatOpen}
+          onClose={() => setIsTextChatOpen(false)}
+          appContext={appContext}
+          apiKey={user?.apiKey && !user.apiKey.includes('AIzaSyCBO1PRv5h9aQAB3rWb') ? user.apiKey : process.env.GEMINI_API_KEY || process.env.API_KEY || ''}
+          themeMode={themeMode}
+          onStartLiveAssistant={startLiveAssistant}
+        />
+      )}
 
       {/* 1-CLICK ALL-IN-ONE API INTEGRATION DOCUMENTATION MODAL */}
       <CompleteApiModal

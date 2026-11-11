@@ -40,7 +40,7 @@ export const VixoraContentMaster: React.FC<VixoraContentMasterProps> = ({
     {
       id: 'msg_welcome',
       sender: 'sister_vixora',
-      text: "God bless you richly my dear creator! 🙏✨ I am Sister Vixora — your AI Content Master & Divine Purpose Coach.\n\nI am here to guide your social media growth, design viral 4-week roadmaps for TikTok, Facebook Reels & WhatsApp status, craft high-retention video templates, and help you monetize your gifts with complete faith and integrity.\n\nChoose a quick strategy below or ask me anything about your niche!",
+      text: "God bless you richly my dear creator! 🙏✨ I am Sister Vixora — your AI Content Master & Script Strategist.\n\nI am here to guide your social media growth, design viral 4-week roadmaps for TikTok, Facebook Reels & WhatsApp status, craft high-retention video templates, and help you monetize your gifts with complete faith and integrity.\n\nChoose a quick strategy below or ask me anything about your niche!",
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
   ]);
@@ -440,7 +440,7 @@ Return strictly valid JSON without markdown wrapping in this exact format:
           }`}
         >
           <i className="fa-solid fa-comments"></i>
-          <span>Live Coach Chat</span>
+          <span>Live Script Chat</span>
         </button>
 
         <button
@@ -697,7 +697,7 @@ Return strictly valid JSON without markdown wrapping in this exact format:
                 disabled={!inputQuery.trim() || isLoading}
                 className="btn-3d btn-3d-orange px-4 sm:px-6 py-3.5 text-xs font-black uppercase rounded-2xl shadow-xl disabled:opacity-50 active:scale-95 transition-all shrink-0 flex items-center gap-1.5 cursor-pointer"
               >
-                <span className="hidden sm:inline">Ask Coach</span>
+                <span className="hidden sm:inline">Ask AI</span>
                 <i className="fa-solid fa-paper-plane"></i>
               </button>
             </form>

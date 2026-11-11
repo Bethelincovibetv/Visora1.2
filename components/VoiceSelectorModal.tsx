@@ -95,8 +95,14 @@ export const VoiceSelectorModal: React.FC<VoiceSelectorModalProps> = ({
       audioRef.current.src = url;
       audioRef.current.onended = () => setPlayingVoiceId(null);
       audioRef.current.onerror = () => setPlayingVoiceId(null);
-      audioRef.current.play();
-      setPlayingVoiceId(voiceId);
+      audioRef.current.play().then(() => {
+        setPlayingVoiceId(voiceId);
+      }).catch((err) => {
+        if (err?.name !== 'AbortError' && !err?.message?.includes('interrupted')) {
+          console.warn('Audio play note:', err);
+        }
+        setPlayingVoiceId(null);
+      });
     } catch (err) {
       console.warn('Audio play error:', err);
       setPlayingVoiceId(null);

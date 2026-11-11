@@ -150,17 +150,17 @@ export const VIXORA_TOOLS_REGISTRY: VixoraToolEntry[] = [
   },
   {
     id: 'tool_sister_vixora',
-    name: 'Sister Vixora Faith & Growth Mentor',
-    shortDescription: 'Spiritual motivation, faith alignment, and personal growth guidance.',
-    fullDescription: 'Personalized spiritual and creator mentorship guided by faith, encouraging quotes, scripture alignment, and daily purpose coaching.',
+    name: 'AI Script & Purpose Strategist',
+    shortDescription: 'Content motivation, viral templates, and storytelling guidance.',
+    fullDescription: 'Personalized creator strategy, viral templates, scripture alignment, and daily purpose guidance.',
     category: 'mentorship',
-    icon: 'fa-cross',
+    icon: 'fa-scroll',
     gradient: 'from-amber-600 to-orange-700',
-    badge: 'MENTORSHIP',
+    badge: 'STRATEGY',
     actionType: 'tab',
-    targetTab: 'coach',
-    suggestedPrompt: 'Give me a spiritual message and motivation for creators today',
-    keywords: ['faith', 'mentor', 'spiritual', 'sister vixora', 'encouragement', 'coaching', 'bible']
+    targetTab: 'scripts',
+    suggestedPrompt: 'Help me plan a viral video script and growth strategy for my channel',
+    keywords: ['scripts', 'mentor', 'viral', 'strategy', 'encouragement', 'templates']
   },
   {
     id: 'tool_learned_skills',

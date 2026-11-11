@@ -244,8 +244,9 @@ export const VIXORA_AGENT_TOOLS: VixoraToolDefinition[] = [
         'music': 'bgmusic',
         'bgmusic': 'bgmusic',
         'background music': 'bgmusic',
-        'coach': 'coach',
-        'sister': 'coach',
+        'coach': 'scripts',
+        'sister': 'scripts',
+        'chat': 'chat',
         'tools': 'tools',
         'developer': 'developer',
         'contact': 'contact'

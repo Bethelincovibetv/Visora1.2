@@ -898,7 +898,7 @@ export function VixoraRemoteWidget() {
                   }`}
                 >
                   <option value="creator">Video Studio & Auto-Sourcer</option>
-                  <option value="chat">Surah AI / Assistant Coach</option>
+                  <option value="chat">Vixora AI Assistant</option>
                   <option value="voiceover">Voiceover & Neural TTS Studio</option>
                   <option value="scripts">Viral Script Generator</option>
                 </select>
@@ -1049,7 +1049,7 @@ export function VixoraRemoteWidget() {
                 }`}
               >
                 <option value="creator">Video Studio</option>
-                <option value="chat">Surah AI Coach</option>
+                <option value="chat">Vixora AI Chat</option>
                 <option value="voiceover">Voiceover Studio</option>
                 <option value="scripts">Scripts AI</option>
               </select>
