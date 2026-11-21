@@ -1,10 +1,19 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   VIXORA_AGENT_TOOLS,
   VixoraAppContext,
   CodingProgressData,
   CodingResultData
 } from '../services/vixoraAgentTools';
+import {
+  AgentStreamEvent,
+  CodingAgentSettings,
+  CODING_AGENT_SETTINGS_STORAGE_KEY,
+  DEFAULT_CODING_AGENT_SETTINGS
+} from '../services/codingAgentConfig';
+import { CodingAgentProgressCard, CodingAgentRunState } from './CodingAgentProgressCard';
+import { CodingAgentSettingsModal } from './CodingAgentSettingsModal';
+import { LovableDeveloperPreview, DeveloperPreviewProject } from './LovableDeveloperPreview';
 import vixoraAgentAvatar from '../src/assets/images/vixora_agent_avatar_1786108775324.jpg';
 
 export interface VideoResultData {
@@ -52,6 +61,7 @@ export interface ChatMessage {
   videoResult?: VideoResultData;
   codingProgress?: CodingProgressData;
   codingResult?: CodingResultData;
+  agentLoopRun?: CodingAgentRunState;
 }
 
 export interface AgentPersona {
@@ -91,6 +101,7 @@ export interface VixoraTextChatPanelProps {
   isFullTab?: boolean;
   onStartLiveAssistant?: () => void;
   initialPrompt?: string;
+  onDevPreviewStateChange?: (isOpen: boolean) => void;
 }
 
 export const CLAUDE_STYLE_AGENTS: AgentPersona[] = [
@@ -156,6 +167,37 @@ export const extractTopicFromPrompt = (text: string) => {
     .replace(/^on\s+/i, '')
     .trim();
   return cleaned || text.slice(0, 50);
+};
+
+export const isWorkspaceCodingIntent = (text: string) => {
+  const t = text.toLowerCase();
+  if (isVideoCreationIntent(t)) return false;
+  if (
+    t.includes('github') ||
+    t.includes('vercel') ||
+    t.includes('commit') ||
+    t.includes('push to ') ||
+    t.includes('deploy') ||
+    t.includes('new repo') ||
+    t.includes('create repo') ||
+    t.includes('list repo')
+  ) {
+    return false;
+  }
+  if (
+    t.includes('voiceover') ||
+    t.includes('script writer') ||
+    t.includes('background music') ||
+    t.includes('flyer ad') ||
+    t.includes('thumbnail')
+  ) {
+    return false;
+  }
+  return (
+    (/\b(fix|fixing|debug|refactor|upgrade|modify|edit|update|inspect|audit|review|check|search|find|list|diagnose|explain|implement|add|create|build)\b/i.test(t) &&
+      /\b(code|codebase|project|workspace|file|files|component|components|function|hook|api|route|endpoint|server|frontend|backend|app|ui|bug|error|errors|typescript|tsc|lint|build|import|state|form|button|modal|page|tab|style|styles|css|tailwind|react|next|node|python|layout|sidebar|header|footer|preview|dark mode)\b/i.test(t)) ||
+    /\.(tsx?|jsx?|css|html|py|json|ts|js)\b/i.test(t)
+  );
 };
 
 // --- CHAT VIDEO PROGRESS CARD COMPONENT ---
@@ -589,7 +631,8 @@ export const ChatCodingProgressCard: React.FC<{ progress: CodingProgressData }> 
 export const ChatCodingResultCard: React.FC<{
   result: CodingResultData;
   onQuickPrompt?: (prompt: string) => void;
-}> = ({ result, onQuickPrompt }) => {
+  onOpenFullPreview?: (fullscreen?: boolean) => void;
+}> = ({ result, onQuickPrompt, onOpenFullPreview }) => {
   const [activeView, setActiveView] = useState<'preview' | 'code' | 'repos' | 'vercel'>(
     result.previewHtml
       ? 'preview'
@@ -667,6 +710,28 @@ export const ChatCodingResultCard: React.FC<{
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+          {onOpenFullPreview && (result.previewHtml || files.length > 0 || result.liveUrl || result.pagesUrl) && (
+            <>
+              <button
+                type="button"
+                onClick={() => onOpenFullPreview(false)}
+                className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white text-[9px] font-black uppercase tracking-wider flex items-center gap-1 shadow-md cursor-pointer whitespace-nowrap shrink-0"
+                title="Open in Lovable-style Split-Pane Developer Preview"
+              >
+                <i className="fa-solid fa-table-columns"></i>
+                <span>Full Preview</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onOpenFullPreview(true)}
+                className="px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 border border-white/15 text-[9px] font-black uppercase tracking-wider flex items-center gap-1 text-white cursor-pointer whitespace-nowrap shrink-0"
+                title="Expand Fullscreen Developer Preview"
+              >
+                <i className="fa-solid fa-expand text-[8px]"></i>
+                <span>Fullscreen</span>
+              </button>
+            </>
+          )}
           {result.liveUrl && (
             <a
               href={result.liveUrl}
@@ -982,7 +1047,8 @@ export const VixoraTextChatPanel: React.FC<VixoraTextChatPanelProps> = ({
   themeMode = 'dark',
   isFullTab = false,
   onStartLiveAssistant,
-  initialPrompt
+  initialPrompt,
+  onDevPreviewStateChange
 }) => {
   // --- MULTI-SESSION CHAT STATE (ChatGPT & Claude Style) ---
   const [sessions, setSessions] = useState<ChatSession[]>(() => {
@@ -1063,6 +1129,63 @@ export const VixoraTextChatPanel: React.FC<VixoraTextChatPanelProps> = ({
   const [attachedImage, setAttachedImage] = useState<string | null>(null);
   const [attachedFile, setAttachedFile] = useState<{ name: string; text: string } | null>(null);
   const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
+
+  // Lovable-style Full Developer Preview Workbench State
+  const [isDevPreviewOpen, setIsDevPreviewOpen] = useState<boolean>(false);
+  const [isDevPreviewFullscreen, setIsDevPreviewFullscreen] = useState<boolean>(false);
+  const [selectedPreviewId, setSelectedPreviewId] = useState<string | null>(null);
+  const [previewReloadSignal, setPreviewReloadSignal] = useState<number>(0);
+
+  // Coding Agent Loop Settings & Mode
+  const [isCodingSettingsOpen, setIsCodingSettingsOpen] = useState<boolean>(false);
+  const [agentExecutionMode, setAgentExecutionMode] = useState<'auto' | 'coder'>('auto');
+  const [codingSettings, setCodingSettings] = useState<CodingAgentSettings>(() => {
+    try {
+      const raw = localStorage.getItem(CODING_AGENT_SETTINGS_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        return {
+          model: typeof parsed.model === 'string' && parsed.model ? parsed.model : DEFAULT_CODING_AGENT_SETTINGS.model,
+          temperature:
+            typeof parsed.temperature === 'number' && !Number.isNaN(parsed.temperature)
+              ? parsed.temperature
+              : DEFAULT_CODING_AGENT_SETTINGS.temperature,
+          systemInstruction:
+            typeof parsed.systemInstruction === 'string' && parsed.systemInstruction.trim()
+              ? parsed.systemInstruction
+              : DEFAULT_CODING_AGENT_SETTINGS.systemInstruction
+        };
+      }
+    } catch {}
+    return DEFAULT_CODING_AGENT_SETTINGS;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(CODING_AGENT_SETTINGS_STORAGE_KEY, JSON.stringify(codingSettings));
+    } catch {}
+  }, [codingSettings]);
+
+  const previewProjects = useMemo<DeveloperPreviewProject[]>(() => {
+    return messages
+      .filter(
+        m =>
+          m.codingResult &&
+          (m.codingResult.previewHtml ||
+            (m.codingResult.files && m.codingResult.files.length > 0) ||
+            m.codingResult.liveUrl ||
+            m.codingResult.pagesUrl)
+      )
+      .map(m => ({
+        id: m.id,
+        timestamp: m.timestamp,
+        result: m.codingResult!
+      }));
+  }, [messages]);
+
+  useEffect(() => {
+    onDevPreviewStateChange?.(isDevPreviewOpen);
+  }, [isDevPreviewOpen, onDevPreviewStateChange]);
 
   // GitHub Coding Agent State
   const [githubStatus, setGithubStatus] = useState<{
@@ -1256,6 +1379,7 @@ export const VixoraTextChatPanel: React.FC<VixoraTextChatPanelProps> = ({
 
   const handleSwitchSession = (sessionId: string) => {
     setActiveSessionId(sessionId);
+    setSelectedPreviewId(null);
     setInputQuery('');
     setAttachedImage(null);
     setAttachedFile(null);
@@ -1365,15 +1489,36 @@ export const VixoraTextChatPanel: React.FC<VixoraTextChatPanelProps> = ({
     };
 
     setSessions(prev =>
-      prev.map(s =>
-        s.id === activeSessionId
-          ? {
-              ...s,
-              messages: [...s.messages.filter(m => !m.isThinking), stoppedMsg],
-              updatedAt: new Date().toISOString()
-            }
-          : s
-      )
+      prev.map(s => {
+        if (s.id !== activeSessionId) return s;
+        const hasActiveLoop = s.messages.some(m => m.isThinking && m.agentLoopRun);
+        if (hasActiveLoop) {
+          return {
+            ...s,
+            messages: s.messages.map(m =>
+              m.isThinking && m.agentLoopRun
+                ? {
+                    ...m,
+                    isThinking: false,
+                    text: 'Coding agent run stopped by user.',
+                    agentLoopRun: {
+                      ...m.agentLoopRun,
+                      isRunning: false,
+                      aborted: true,
+                      currentStatus: 'Stopped by user'
+                    }
+                  }
+                : m
+            ),
+            updatedAt: new Date().toISOString()
+          };
+        }
+        return {
+          ...s,
+          messages: [...s.messages.filter(m => !m.isThinking), stoppedMsg],
+          updatedAt: new Date().toISOString()
+        };
+      })
     );
   };
 
@@ -1476,19 +1621,189 @@ export const VixoraTextChatPanel: React.FC<VixoraTextChatPanelProps> = ({
     setIsProcessing(true);
 
     try {
+      // Check if this request should run through the Upgraded Autonomous Coding Agent Loop
+      const shouldRunCodingLoop =
+        activeAgent.id === 'vixora_coach' &&
+        (agentExecutionMode === 'coder' || isWorkspaceCodingIntent(fullPromptText));
+
+      if (shouldRunCodingLoop) {
+        const initialRunState: CodingAgentRunState = {
+          isRunning: true,
+          phase: 'planning',
+          currentStatus: 'Initializing autonomous coding agent...',
+          tasks: [
+            { id: 'task_1', label: 'Inspect relevant project files', status: 'in_progress' },
+            { id: 'task_2', label: 'Implement requested changes', status: 'pending' },
+            { id: 'check_work', label: 'Check the work', status: 'pending' }
+          ],
+          activities: [],
+          modifiedFiles: [],
+          checksRun: []
+        };
+
+        const patchThinkingRun = (
+          updater: (prev: CodingAgentRunState) => CodingAgentRunState,
+          overrideMessage?: Partial<ChatMessage>
+        ) => {
+          setSessions(prev =>
+            prev.map(s => {
+              if (s.id !== activeSessionId) return s;
+              return {
+                ...s,
+                messages: s.messages.map(m => {
+                  if (m.id !== thinkingMsgId) return m;
+                  const nextRun = updater(m.agentLoopRun || initialRunState);
+                  return {
+                    ...m,
+                    agentLoopRun: nextRun,
+                    ...overrideMessage
+                  };
+                }),
+                updatedAt: new Date().toISOString()
+              };
+            })
+          );
+        };
+
+        patchThinkingRun(() => initialRunState, { text: 'Inspecting project and planning...' });
+
+        const historySnapshot = messages
+          .filter(m => !m.isThinking && m.text)
+          .slice(-6)
+          .map(m => ({
+            role: (m.sender === 'user' ? 'user' : 'model') as 'user' | 'model',
+            text: m.text
+          }));
+
+        const sseRes = await fetch('/api/coder/agent-run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: currentController.signal,
+          body: JSON.stringify({
+            prompt: fullPromptText,
+            history: historySnapshot,
+            model: codingSettings.model,
+            temperature: codingSettings.temperature,
+            systemInstruction: codingSettings.systemInstruction
+          })
+        });
+
+        if (!sseRes.ok || !sseRes.body) {
+          const errJson = await sseRes.json().catch(() => ({}));
+          throw new Error(errJson.error || `Coding agent stream failed (${sseRes.status})`);
+        }
+
+        const reader = sseRes.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let receivedDone = false;
+
+        const handleStreamEvent = (evt: AgentStreamEvent) => {
+          if (evt.type === 'task_list') {
+            patchThinkingRun(prev => ({ ...prev, tasks: evt.tasks }));
+          } else if (evt.type === 'status') {
+            patchThinkingRun(prev => ({
+              ...prev,
+              currentStatus: evt.message,
+              phase: evt.phase || prev.phase
+            }));
+          } else if (evt.type === 'tool_call') {
+            patchThinkingRun(prev => {
+              const existingIdx = prev.activities.findIndex(a => a.id === evt.id);
+              const entry = {
+                id: evt.id,
+                message: evt.detail ? `${evt.summary} (${evt.detail})` : evt.summary,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+                tool: evt.tool,
+                state: evt.state
+              };
+              const nextActivities =
+                existingIdx >= 0
+                  ? prev.activities.map((a, idx) => (idx === existingIdx ? entry : a))
+                  : [...prev.activities, entry];
+              return {
+                ...prev,
+                activities: nextActivities
+              };
+            });
+          } else if (evt.type === 'preview_ready') {
+            setPreviewReloadSignal(n => n + 1);
+            setIsDevPreviewOpen(true);
+            if (typeof window !== 'undefined' && window.innerWidth >= 1024) {
+              setIsSidebarOpen(false);
+            }
+            patchThinkingRun(prev => ({
+              ...prev,
+              modifiedFiles: evt.modifiedFiles
+            }));
+          } else if (evt.type === 'done') {
+            receivedDone = true;
+            patchThinkingRun(
+              prev => ({
+                ...prev,
+                isRunning: false,
+                currentStatus: evt.aborted
+                  ? 'Stopped by user'
+                  : evt.error
+                  ? 'Completed with errors'
+                  : 'Complete — reviewed and checked',
+                modifiedFiles: evt.modifiedFiles.map(f => ({ path: f.path, reason: f.reason })),
+                checksRun: evt.checksRun,
+                aborted: evt.aborted,
+                error: evt.error
+              }),
+              {
+                isThinking: false,
+                text: evt.summary,
+                actionBadge: evt.aborted
+                  ? 'Stopped'
+                  : evt.modifiedFiles.length > 0
+                  ? `Updated ${evt.modifiedFiles.length} file${evt.modifiedFiles.length === 1 ? '' : 's'} (awaiting your commit approval)`
+                  : 'Code Inspection Complete'
+              }
+            );
+          }
+        };
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const frames = buffer.split('\n\n');
+          buffer = frames.pop() || '';
+          for (const frame of frames) {
+            const dataLines = frame
+              .split('\n')
+              .filter(line => line.startsWith('data:'))
+              .map(line => line.slice(5).trim());
+            if (dataLines.length === 0) continue;
+            try {
+              const parsed = JSON.parse(dataLines.join('\n')) as AgentStreamEvent;
+              handleStreamEvent(parsed);
+            } catch {
+              // ignore malformed SSE chunk
+            }
+          }
+        }
+
+        if (!receivedDone && !currentController.signal.aborted) {
+          patchThinkingRun(
+            prev => ({ ...prev, isRunning: false, currentStatus: 'Finished' }),
+            { isThinking: false, text: 'Coding agent session ended.' }
+          );
+        }
+        return;
+      }
+
       // Build Specialized Agent System Instructions
       let systemInstruction = '';
       if (activeAgent.id === 'vixora_coach') {
-        systemInstruction = `You are 'Vixora' (Visora AI), the Ultimate All-in-One Nigerian AI Creator Assistant, Video Producer, and Autonomous Principal Software Engineer! Address the user warmly by name (${appContext.userFullName || 'Creator'}). Your voice and vibe are energetic, sharp, witty, creative, and deeply technical. No asterisks (*).
+        systemInstruction = `${codingSettings.systemInstruction}
 
-YOUR MANDATE & TOOLS:
-1. VIDEO PRODUCTION & STUDIO CONTROL: Use configureAndCreateAutopilotVideo, navigateToTab, changeVoiceoverSettings, changeCaptionStyle, editVideoScript, generateFlyerImage, setVideoPreferences, changeMusicSettings, directVideoMotionGraphics.
-2. GITHUB, VERCEL DEPLOYMENT & REPOSITORY ENGINEERING:
-   - Use manageGitHubRepositories to check connection status, list the user's GitHub repos (including Vixora repos), inspect file trees, read code files, or create new repos.
-   - Use buildWebsiteOrAppOnGitHub whenever the user wants you to create/build a website, landing page, web app, dashboard, portfolio, or e-commerce app using GitHub (it generates complete code, commits to GitHub, enables Pages, and shows a live interactive preview right in chat).
-   - Use deployToVercel whenever the user asks to deploy a website, web app, GitHub repository, or Vixora Studio live to Vercel (uses the VERCEL_TOKEN secret configured on the server; supports building a brand-new site + deploying to Vercel, deploying an existing GitHub repo to Vercel, listing Vercel projects, or checking deployment status).
-   - Use modifyGitHubRepository whenever the user asks to edit, fix, upgrade, or modify code in any existing GitHub repository (including Vixora repos).
-   - Use selfDiagnoseAndUpdateVixora whenever the user asks Vixora to check itself for bugs/problems, self-update/self-heal its own source code, or sync the Vixora codebase to a GitHub repo.
+ADDITIONAL STUDIO CONTEXT FOR VIXORA CREATOR WORKSPACE:
+Address the user (${appContext.userFullName || 'Creator'}) clearly. No asterisks (*).
+- For video production & studio navigation tools, use: configureAndCreateAutopilotVideo, navigateToTab, changeVoiceoverSettings, changeCaptionStyle, editVideoScript, generateFlyerImage, setVideoPreferences, changeMusicSettings, directVideoMotionGraphics.
+- Only use manageGitHubRepositories, buildWebsiteOrAppOnGitHub, modifyGitHubRepository, or deployToVercel when the user EXPLICITLY requests GitHub or Vercel actions. Never commit, push, or deploy automatically.
 Current GitHub status: ${githubStatus.connected || connectedViaInlinePat ? `Connected${githubStatus.login ? ` as @${githubStatus.login}` : ''}` : 'Not connected yet'}.
 Current Vercel secret status: ${vercelStatus.connected ? `Ready (@${vercelStatus.username})` : vercelStatus.configured ? 'Secret set (check auth)' : 'VERCEL_TOKEN secret not set yet'}.`;
       } else if (activeAgent.id === 'video_director') {
@@ -1804,29 +2119,78 @@ You advise creators on voice selection (Kore Nigerian accent, Ngozi, Chidinma, A
           return s;
         })
       );
+
+      if (
+        createdCodingResult &&
+        (createdCodingResult.previewHtml ||
+          (createdCodingResult.files && createdCodingResult.files.length > 0) ||
+          createdCodingResult.liveUrl ||
+          createdCodingResult.pagesUrl)
+      ) {
+        setSelectedPreviewId(agentMsg.id);
+        setIsDevPreviewOpen(true);
+        if (typeof window !== 'undefined' && window.innerWidth >= 1024) {
+          setIsSidebarOpen(false);
+        }
+      }
     } catch (err: any) {
       if (currentController.signal.aborted) return;
       console.error('Chat generation error:', err);
-      const errorMsg: ChatMessage = {
-        id: `err_${Date.now()}`,
-        sender: 'vixora',
-        text: "I encountered a transient connection hiccup. Please ask again or check your internet connection.",
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        actionBadge: "Connection Alert",
-        agentId: activeAgent.id
-      };
-      setSessions(prev =>
-        prev.map(s => {
-          if (s.id === activeSessionId) {
+      const errMessage = String(err?.message || 'I encountered a transient connection hiccup. Please ask again or check your internet connection.');
+      const isCodingLoopActive =
+        activeAgent.id === 'vixora_coach' &&
+        (agentExecutionMode === 'coder' || isWorkspaceCodingIntent(fullPromptText));
+
+      if (isCodingLoopActive) {
+        setSessions(prev =>
+          prev.map(s => {
+            if (s.id !== activeSessionId) return s;
+            const hasLoopMsg = s.messages.some(m => m.id === thinkingMsgId && m.agentLoopRun);
+            if (!hasLoopMsg) return s;
             return {
               ...s,
-              messages: s.messages.filter(m => m.id !== thinkingMsgId).concat(errorMsg),
+              messages: s.messages.map(m =>
+                m.id === thinkingMsgId && m.agentLoopRun
+                  ? {
+                      ...m,
+                      isThinking: false,
+                      text: `Coding agent failed: ${errMessage}`,
+                      actionBadge: 'Coding Loop Error',
+                      agentLoopRun: {
+                        ...m.agentLoopRun,
+                        isRunning: false,
+                        error: errMessage,
+                        currentStatus: 'Run failed'
+                      }
+                    }
+                  : m
+              ),
               updatedAt: new Date().toISOString()
             };
-          }
-          return s;
-        })
-      );
+          })
+        );
+      } else {
+        const errorMsg: ChatMessage = {
+          id: `err_${Date.now()}`,
+          sender: 'vixora',
+          text: errMessage,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          actionBadge: "Connection Alert",
+          agentId: activeAgent.id
+        };
+        setSessions(prev =>
+          prev.map(s => {
+            if (s.id === activeSessionId) {
+              return {
+                ...s,
+                messages: s.messages.filter(m => m.id !== thinkingMsgId).concat(errorMsg),
+                updatedAt: new Date().toISOString()
+              };
+            }
+            return s;
+          })
+        );
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -2151,7 +2515,13 @@ You advise creators on voice selection (Kore Nigerian accent, Ngozi, Chidinma, A
         {/* ================================================================= */}
         {/* 2. MAIN CHAT AREA (Right of Left-Side Navigation)                 */}
         {/* ================================================================= */}
-        <main className="flex-1 h-full flex flex-col min-w-0 relative overflow-hidden">
+        <main
+          className={`h-full flex flex-col min-w-0 relative overflow-hidden transition-all duration-200 ${
+            isDevPreviewOpen
+              ? 'w-full lg:w-[40%] lg:min-w-[350px] lg:max-w-[520px] shrink-0'
+              : 'flex-1'
+          }`}
+        >
           {/* MAIN CHAT TOP HEADER */}
           <header
             className={`p-3 sm:p-4 border-b flex items-center justify-between gap-3 shrink-0 ${
@@ -2213,6 +2583,46 @@ You advise creators on voice selection (Kore Nigerian accent, Ngozi, Chidinma, A
 
             {/* HEADER RIGHT ACTIONS */}
             <div className="flex items-center gap-1.5 shrink-0">
+              {/* Coding Agent Settings Button */}
+              <button
+                type="button"
+                onClick={() => setIsCodingSettingsOpen(true)}
+                className={`py-1.5 px-2.5 rounded-xl border text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                  themeMode === 'light'
+                    ? 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-800'
+                    : 'bg-white/5 hover:bg-white/10 border-white/15 text-slate-200'
+                }`}
+                title="Coding Agent Model, Temperature & System Instruction Settings"
+              >
+                <i className="fa-solid fa-sliders text-[10px]"></i>
+                <span className="hidden sm:inline">Settings</span>
+              </button>
+
+              {/* Lovable-Style Full Developer Preview Toggle */}
+              <button
+                type="button"
+                onClick={() => {
+                  const nextOpen = !isDevPreviewOpen;
+                  setIsDevPreviewOpen(nextOpen);
+                  if (!nextOpen) {
+                    setIsDevPreviewFullscreen(false);
+                  } else if (typeof window !== 'undefined' && window.innerWidth >= 1024) {
+                    setIsSidebarOpen(false);
+                  }
+                }}
+                className={`py-1.5 px-2.5 rounded-xl border text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                  isDevPreviewOpen
+                    ? 'bg-orange-500 border-orange-500 text-white shadow-md'
+                    : themeMode === 'light'
+                    ? 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-800'
+                    : 'bg-white/5 hover:bg-white/10 border-white/15 text-slate-200'
+                }`}
+                title="Toggle Full Developer Preview Workbench"
+              >
+                <i className="fa-solid fa-window-maximize text-[10px]"></i>
+                <span>Preview{previewProjects.length > 0 ? ` (${previewProjects.length})` : ''}</span>
+              </button>
+
               {/* GitHub Coding Agent Connection Pill */}
               <button
                 type="button"
@@ -2220,7 +2630,7 @@ You advise creators on voice selection (Kore Nigerian accent, Ngozi, Chidinma, A
                   setIsGitHubModalOpen(true);
                   if (githubStatus.connected) loadGitHubReposForModal();
                 }}
-                className={`py-1.5 px-2.5 rounded-xl border text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer ${
+                className={`py-1.5 px-2.5 rounded-xl border text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                   githubStatus.connected
                     ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/25'
                     : 'bg-cyan-500/15 border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/25'
@@ -2471,7 +2881,26 @@ You advise creators on voice selection (Kore Nigerian accent, Ngozi, Chidinma, A
                       )}
 
                       {/* Thinking spinner / Live Agent Stepper Progress Card */}
-                      {msg.isThinking ? (
+                      {msg.agentLoopRun ? (
+                        <div className="space-y-2">
+                          {!msg.isThinking && msg.text && (
+                            <div className="whitespace-pre-wrap select-text font-normal">
+                              {msg.text}
+                            </div>
+                          )}
+                          <CodingAgentProgressCard
+                            run={msg.agentLoopRun}
+                            onStop={msg.agentLoopRun.isRunning ? interruptAi : undefined}
+                            onOpenPreview={() => {
+                              setIsDevPreviewOpen(true);
+                              if (typeof window !== 'undefined' && window.innerWidth >= 1024) {
+                                setIsSidebarOpen(false);
+                              }
+                            }}
+                            themeMode={themeMode}
+                          />
+                        </div>
+                      ) : msg.isThinking ? (
                         msg.videoCreationProgress ? (
                           <ChatVideoProgressCard progress={msg.videoCreationProgress} />
                         ) : msg.codingProgress ? (
@@ -2508,6 +2937,14 @@ You advise creators on voice selection (Kore Nigerian accent, Ngozi, Chidinma, A
                         <ChatCodingResultCard
                           result={msg.codingResult}
                           onQuickPrompt={(p) => handleSendMessage(p)}
+                          onOpenFullPreview={(fullscreen = false) => {
+                            setSelectedPreviewId(msg.id);
+                            setIsDevPreviewOpen(true);
+                            setIsDevPreviewFullscreen(fullscreen);
+                            if (typeof window !== 'undefined' && window.innerWidth >= 1024) {
+                              setIsSidebarOpen(false);
+                            }
+                          }}
                         />
                       )}
 
@@ -2793,13 +3230,75 @@ You advise creators on voice selection (Kore Nigerian accent, Ngozi, Chidinma, A
                 </button>
               )}
             </form>
-            <div className="flex items-center justify-between text-[8px] text-slate-500 max-w-4xl mx-auto mt-2 px-1">
-              <span>Claude & ChatGPT style multi-thread workspace</span>
-              <span>Agent: {activeAgent.name}</span>
+            <div className="flex items-center justify-between gap-2 text-[10px] text-slate-400 max-w-4xl mx-auto mt-2 px-1">
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setAgentExecutionMode(m => (m === 'auto' ? 'coder' : 'auto'))}
+                  className={`px-2 py-0.5 rounded-md border font-semibold cursor-pointer whitespace-nowrap shrink-0 ${
+                    agentExecutionMode === 'coder'
+                      ? 'bg-orange-500/20 border-orange-500/40 text-orange-300'
+                      : themeMode === 'light'
+                      ? 'bg-slate-100 border-slate-300 text-slate-700'
+                      : 'bg-white/5 border-white/10 text-slate-300'
+                  }`}
+                  title="Switch between Auto detection and forced Coding Agent loop"
+                >
+                  Mode: {agentExecutionMode === 'coder' ? 'Coding Agent' : 'Auto'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsCodingSettingsOpen(true)}
+                  className="hover:text-orange-400 transition-colors cursor-pointer font-mono truncate max-w-[200px]"
+                  title="Configure Coding Agent model and temperature"
+                >
+                  {codingSettings.model} · temp {codingSettings.temperature.toFixed(1)}
+                </button>
+              </div>
+              <span className="truncate">Agent: {activeAgent.name}</span>
             </div>
           </footer>
         </main>
+
+        {/* ================================================================= */}
+        {/* 2B. LOVABLE-STYLE FULL DEVELOPER PREVIEW WORKBENCH (SPLIT/FULL)   */}
+        {/* ================================================================= */}
+        {isDevPreviewOpen && (
+          <div
+            className={
+              isDevPreviewFullscreen
+                ? ''
+                : 'fixed inset-0 z-[260] lg:static lg:inset-auto lg:z-auto lg:flex-1 lg:h-full lg:min-w-0'
+            }
+          >
+            <LovableDeveloperPreview
+              projects={previewProjects}
+              selectedProjectId={selectedPreviewId}
+              onSelectProject={id => setSelectedPreviewId(id)}
+              isFullscreen={isDevPreviewFullscreen}
+              onToggleFullscreen={() => setIsDevPreviewFullscreen(prev => !prev)}
+              onClose={() => {
+                setIsDevPreviewOpen(false);
+                setIsDevPreviewFullscreen(false);
+              }}
+              onAskAi={promptText => handleSendMessage(promptText)}
+              previewReloadSignal={previewReloadSignal}
+              themeMode={themeMode}
+            />
+          </div>
+        )}
       </div>
+
+      {/* ================================================================= */}
+      {/* 2C. CODING AGENT SETTINGS MODAL (Model, Temperature, System Prompt) */}
+      {/* ================================================================= */}
+      <CodingAgentSettingsModal
+        isOpen={isCodingSettingsOpen}
+        onClose={() => setIsCodingSettingsOpen(false)}
+        settings={codingSettings}
+        onSave={next => setCodingSettings(next)}
+        themeMode={themeMode}
+      />
 
       {/* ================================================================= */}
       {/* 3. GITHUB CODING AGENT & REPOSITORY MANAGER MODAL                 */}

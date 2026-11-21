@@ -304,6 +304,7 @@ const App: React.FC = () => {
   const [showAccessibilityModal, setShowAccessibilityModal] = useState(false);
   const [showGlobalApiModal, setShowGlobalApiModal] = useState(false);
   const [showNativeExportModal, setShowNativeExportModal] = useState(false);
+  const [isChatDevPreviewOpen, setIsChatDevPreviewOpen] = useState(false);
 
   // Helper to map tab identifier to canonical URL path
   const getTabPath = (tab: string) => {
@@ -2913,7 +2914,7 @@ Structure: Full Masterclass / In-depth Documentary Script.
   );
 
   return (
-    <div className={`w-full ${(activeTab === 'chat' || activeTab === 'flyer-ad') ? 'max-w-6xl' : 'max-w-2xl'} mx-auto min-h-screen relative flex flex-col justify-start px-2 sm:px-4 py-3 sm:py-6 transition-colors duration-300 overflow-x-hidden box-border ${themeMode === 'light' ? 'bg-slate-100 text-slate-900' : 'bg-slate-950 text-white'}`}>
+    <div className={`w-full ${activeTab === 'chat' && isChatDevPreviewOpen ? 'max-w-[1760px]' : (activeTab === 'chat' || activeTab === 'flyer-ad' || activeTab === 'developer') ? 'max-w-6xl' : 'max-w-2xl'} mx-auto min-h-screen relative flex flex-col justify-start px-2 sm:px-4 py-3 sm:py-6 transition-colors duration-300 overflow-x-hidden box-border ${themeMode === 'light' ? 'bg-slate-100 text-slate-900' : 'bg-slate-950 text-white'}`}>
       
       {showAbout && (
         <div className="fixed inset-0 z-[300] bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center p-4 animate-rise">
@@ -5261,6 +5262,7 @@ Structure: Full Masterclass / In-depth Documentary Script.
               apiKey={user?.apiKey && !user.apiKey.includes('AIzaSyCBO1PRv5h9aQAB3rWb') ? user.apiKey : process.env.GEMINI_API_KEY || process.env.API_KEY || ''}
               themeMode={themeMode}
               onStartLiveAssistant={startLiveAssistant}
+              onDevPreviewStateChange={setIsChatDevPreviewOpen}
             />
           </div>
         )}

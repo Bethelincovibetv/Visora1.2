@@ -49,6 +49,7 @@ import {
   deployGitHubRepoToVercel,
   deployVixoraWorkspaceToVercel
 } from './services/vercelDeployService';
+import { runAutonomousCodingAgentLoop } from './services/serverCodingAgent';
 
 async function startServer() {
   const app = express();
@@ -1234,6 +1235,66 @@ Return JSON in this EXACT schema:
     }
   });
 
+  app.post('/api/coder/agent-run', async (req, res) => {
+    const { prompt, history, model, temperature, systemInstruction } = req.body || {};
+    if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
+      return res.status(400).json({ ok: false, error: 'Field "prompt" is required.' });
+    }
+
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders?.();
+
+    const abortController = new AbortController();
+    let streamClosed = false;
+
+    res.on('close', () => {
+      streamClosed = true;
+      if (!res.writableEnded) {
+        abortController.abort();
+      }
+    });
+
+    const emitEvent = (event: any) => {
+      if (streamClosed || res.writableEnded) return;
+      try {
+        res.write(`data: ${JSON.stringify(event)}\n\n`);
+      } catch {
+        // ignore write after close
+      }
+    };
+
+    try {
+      await runAutonomousCodingAgentLoop({
+        prompt: prompt.trim(),
+        history: Array.isArray(history) ? history : [],
+        model: typeof model === 'string' && model.trim() ? model.trim() : undefined,
+        temperature: typeof temperature === 'number' ? temperature : 0.3,
+        systemInstruction:
+          typeof systemInstruction === 'string' && systemInstruction.trim()
+            ? systemInstruction
+            : undefined,
+        signal: abortController.signal,
+        emit: emitEvent
+      });
+    } catch (err: any) {
+      emitEvent({
+        type: 'done',
+        summary: `Coding agent failed: ${err?.message || 'Unexpected error'}`,
+        modifiedFiles: [],
+        readFiles: [],
+        checksRun: [],
+        error: err?.message || 'Unexpected error'
+      });
+    } finally {
+      if (!streamClosed && !res.writableEnded) {
+        res.end();
+      }
+    }
+  });
+
   // ==========================================================================
   // 10. VERCEL DEPLOYMENT ENGINE ENDPOINTS (Token read strictly from secrets)
   // ==========================================================================
@@ -1350,8 +1411,15 @@ Return JSON in this EXACT schema:
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
+    app.use(express.static(distPath, {
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith('index.html') || filePath.endsWith('sw.js')) {
+          res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        }
+      }
+    }));
     app.get('*all', (req, res) => {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }

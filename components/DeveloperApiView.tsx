@@ -60,6 +60,9 @@ export const DeveloperApiView: React.FC<DeveloperApiViewProps> = ({ themeMode = 
   const [embedType, setEmbedType] = useState<'creator' | 'chat' | 'voiceover' | 'scripts'>('creator');
   const [embedTheme, setEmbedTheme] = useState<'dark' | 'light'>('dark');
   const [embedHeight, setEmbedHeight] = useState('740px');
+  const [simulatorViewport, setSimulatorViewport] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
+  const [simulatorFullscreen, setSimulatorFullscreen] = useState(false);
+  const [simulatorRefreshKey, setSimulatorRefreshKey] = useState(0);
 
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://vixora.studio';
 
@@ -1026,21 +1029,47 @@ export function VixoraRemoteWidget() {
 
       {/* SUBTAB 4: LIVE SIMULATOR */}
       {activeSubTab === 'simulator' && (
-        <div className={`p-6 rounded-3xl border shadow-xl space-y-4 ${
-          themeMode === 'light' ? 'bg-white border-slate-200' : 'bg-slate-900/90 border-white/10'
-        }`}>
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b pb-3 dark:border-white/10 border-slate-200">
-            <div className="space-y-0.5">
+        <div className={
+          simulatorFullscreen
+            ? `fixed inset-0 z-[280] flex flex-col ${themeMode === 'light' ? 'bg-slate-50 text-slate-900' : 'bg-slate-950 text-white'}`
+            : `p-4 sm:p-6 rounded-3xl border shadow-xl space-y-4 ${
+                themeMode === 'light' ? 'bg-white border-slate-200' : 'bg-slate-900/90 border-white/10'
+              }`
+        }>
+          <div className={`flex flex-wrap items-center justify-between gap-3 border-b dark:border-white/10 border-slate-200 ${simulatorFullscreen ? (themeMode === 'light' ? 'px-4 py-3 bg-white' : 'px-4 py-3 bg-slate-900/95') : 'pb-3'}`}>
+            <div className="space-y-0.5 min-w-0">
               <h3 className="text-sm font-black uppercase tracking-wider flex items-center gap-2">
                 <i className="fa-solid fa-play text-purple-400"></i>
-                <span>Live Remote Embed Simulator</span>
+                <span>Full Developer Embed Preview</span>
               </h3>
-              <p className="text-xs text-slate-400">
-                This simulator runs the exact iframe container that your remote visitors will see on your external website.
+              <p className="text-xs text-slate-400 truncate">
+                {`${baseUrl}/?embed=${embedType}&theme=${embedTheme}`}
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="inline-flex items-center p-0.5 rounded-xl border border-white/10 bg-black/30">
+                {([
+                  { id: 'desktop', label: 'Desktop', icon: 'fa-desktop' },
+                  { id: 'tablet', label: 'Tablet', icon: 'fa-tablet-screen-button' },
+                  { id: 'mobile', label: 'Mobile', icon: 'fa-mobile-screen-button' }
+                ] as const).map(d => (
+                  <button
+                    key={d.id}
+                    type="button"
+                    onClick={() => setSimulatorViewport(d.id)}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 cursor-pointer whitespace-nowrap shrink-0 ${
+                      simulatorViewport === d.id
+                        ? 'bg-orange-500 text-white'
+                        : 'text-slate-300 hover:text-white'
+                    }`}
+                  >
+                    <i className={`fa-solid ${d.icon} text-[10px]`}></i>
+                    <span className="hidden sm:inline">{d.label}</span>
+                  </button>
+                ))}
+              </div>
+
               <select
                 value={embedType}
                 onChange={e => setEmbedType(e.target.value as any)}
@@ -1054,28 +1083,60 @@ export function VixoraRemoteWidget() {
                 <option value="scripts">Scripts AI</option>
               </select>
 
+              <button
+                type="button"
+                onClick={() => setSimulatorRefreshKey(k => k + 1)}
+                className="px-2.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
+                title="Reload Preview"
+              >
+                <i className="fa-solid fa-rotate-right"></i>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSimulatorFullscreen(f => !f)}
+                className={`px-3 py-2 rounded-xl text-xs font-bold uppercase flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 ${
+                  simulatorFullscreen
+                    ? 'bg-orange-500 text-white'
+                    : 'bg-white/10 hover:bg-white/20 text-white'
+                }`}
+              >
+                <i className={`fa-solid ${simulatorFullscreen ? 'fa-compress' : 'fa-expand'}`}></i>
+                <span>{simulatorFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}</span>
+              </button>
+
               <a
                 href={`${baseUrl}/?embed=${embedType}&apiKey=${selectedApiKey}&theme=${embedTheme}`}
                 target="_blank"
-                rel="noreferrer"
-                className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold uppercase flex items-center gap-1.5"
+                rel="noopener noreferrer"
+                className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold uppercase flex items-center gap-1.5 whitespace-nowrap shrink-0"
               >
                 <i className="fa-solid fa-arrow-up-right-from-square"></i>
-                <span>Open in New Window</span>
+                <span className="hidden sm:inline">Open Tab</span>
               </a>
             </div>
           </div>
 
           {/* Embedded Iframe Container */}
-          <div className="rounded-2xl border border-white/10 overflow-hidden bg-black/60 shadow-2xl">
-            <iframe
-              src={`${baseUrl}/?embed=${embedType}&apiKey=${selectedApiKey}&theme=${embedTheme}`}
-              width="100%"
-              height="700px"
-              style={{ border: 'none' }}
-              allow="camera; microphone; display-capture; clipboard-write;"
-              title="Vixora Studio Live Embed Simulator"
-            />
+          <div className={`${simulatorFullscreen ? 'flex-1 min-h-0' : ''} flex flex-col items-center justify-center rounded-2xl border border-white/10 overflow-auto bg-black/60 shadow-2xl ${simulatorViewport !== 'desktop' ? 'p-4' : ''}`}>
+            <div
+              className="h-full transition-all duration-200 bg-slate-950 overflow-hidden rounded-xl"
+              style={{
+                width: simulatorViewport === 'mobile' ? '390px' : simulatorViewport === 'tablet' ? '768px' : '100%',
+                maxWidth: '100%',
+                height: simulatorFullscreen ? '100%' : '760px'
+              }}
+            >
+              <iframe
+                key={`${embedType}-${embedTheme}-${simulatorRefreshKey}`}
+                src={`${baseUrl}/?embed=${embedType}&apiKey=${selectedApiKey}&theme=${embedTheme}`}
+                width="100%"
+                height="100%"
+                style={{ border: 'none' }}
+                allow="camera; microphone; display-capture; clipboard-write;"
+                title="Vixora Studio Live Embed Simulator"
+              />
+            </div>
           </div>
         </div>
       )}

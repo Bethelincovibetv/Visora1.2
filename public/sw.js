@@ -1,13 +1,11 @@
-const CACHE_NAME = 'vixora-pwa-v3';
+const CACHE_NAME = 'vixora-pwa-v4';
 const ASSETS = [
   '/',
-  '/index.html',
   '/manifest.json',
   '/icon-192.jpg',
-  '/icon-512.jpg',
   '/icons/icon-192.svg',
   '/icons/icon-512.svg',
-  '/vixora_logo.jpg'
+  '/favicon.ico'
 ];
 
 self.addEventListener('install', (event) => {
@@ -30,14 +28,22 @@ self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   
   const url = new URL(event.request.url);
-  if (url.pathname.startsWith('/api') || url.hostname.includes('googleapis') || url.hostname.includes('firestore')) {
+  if (
+    url.pathname.startsWith('/api') ||
+    url.pathname.startsWith('/@') ||
+    url.pathname.startsWith('/node_modules') ||
+    url.pathname.endsWith('.tsx') ||
+    url.pathname.endsWith('.ts') ||
+    url.hostname.includes('googleapis') ||
+    url.hostname.includes('firestore')
+  ) {
     return;
   }
 
   event.respondWith(
-    fetch(event.request)
+    fetch(event.request, { cache: event.request.mode === 'navigate' ? 'no-store' : 'default' })
       .then((response) => {
-        if (response && response.status === 200 && response.type === 'basic') {
+        if (response && response.status === 200 && response.type === 'basic' && event.request.mode !== 'navigate') {
           const responseToCache = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseToCache));
         }
