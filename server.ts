@@ -16,6 +16,7 @@ import {
   getServerProject,
   CreateVideoParams,
   getGemini,
+  generateContentResilient,
   CURATED_STOCK_VIDEOS,
   BGM_TRACKS
 } from './services/serverVideoEngine';
@@ -488,8 +489,8 @@ Return JSON in this EXACT schema:
   "target_duration_seconds": ${duration === '15s' ? 15 : duration === '60s' ? 60 : 30}
 }`;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+      const response = await generateContentResilient({
+        model: 'gemini-3.1-flash-lite',
         contents: prompt,
         config: {
           responseMimeType: 'application/json',
@@ -615,8 +616,9 @@ Return JSON in this EXACT schema:
             httpOptions: { headers: { 'User-Agent': 'aistudio-build' } }
           });
 
-          const speechRes = await ai.models.generateContent({
-            model: 'gemini-3.1-flash-tts-preview',
+          const speechRes = await generateContentResilient({
+            client: ai,
+            model: 'gemini-3.8-flash-lite-tts',
             contents: text,
             config: {
               responseModalities: [Modality.AUDIO],
@@ -700,12 +702,11 @@ Return JSON in this EXACT schema:
   // ==========================================================================
   const handleGeminiGenerate = async (req: express.Request, res: express.Response) => {
     try {
-      const { model = 'gemini-2.5-flash', contents, config } = req.body || {};
+      const { model = 'gemini-3.1-flash-lite', contents, config } = req.body || {};
       if (!contents) {
         return res.status(400).json({ ok: false, error: 'Field "contents" is required for Gemini generation' });
       }
-      const ai = getGemini();
-      const response = await ai.models.generateContent({
+      const response = await generateContentResilient({
         model,
         contents,
         config
@@ -716,10 +717,21 @@ Return JSON in this EXACT schema:
         candidates: response.candidates || []
       });
     } catch (err: any) {
-      console.error('[API /gemini/generate Error]:', err);
-      return res.status(500).json({
+      const rawMsg = String(err?.message || 'Server-side Gemini generation failed');
+      const isQuota = rawMsg.includes('429') || rawMsg.includes('RESOURCE_EXHAUSTED') || rawMsg.includes('quota');
+      const isBusy = rawMsg.includes('503') || rawMsg.includes('UNAVAILABLE') || rawMsg.includes('high demand');
+      const statusCode = isQuota ? 429 : isBusy ? 503 : 500;
+      const friendlyMsg = isQuota
+        ? 'Gemini daily free-tier quota was reached for this model. Please retry shortly or upgrade your Gemini API plan.'
+        : isBusy
+        ? 'Gemini models are temporarily experiencing high demand. Please retry in a few seconds.'
+        : rawMsg;
+
+      console.warn('[API /gemini/generate Notice]:', statusCode, friendlyMsg);
+      return res.status(statusCode).json({
         ok: false,
-        error: err?.message || 'Server-side Gemini generation failed'
+        code: statusCode,
+        error: friendlyMsg
       });
     }
   };

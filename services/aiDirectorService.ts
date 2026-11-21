@@ -2,7 +2,7 @@
 // Analyzes scripts, narration, and stock B-roll to orchestrate camera movements,
 // trimming, pacing, 2D motion graphics overlays, and cinematic transitions.
 
-import { GoogleGenAI, Type } from "@google/genai";
+import { Type } from "@google/genai";
 import { SourcedVideo } from '../components/VideoSequencer';
 
 export type DirectorStyle = 
@@ -382,23 +382,15 @@ export async function analyzeAndDirectVideo(
   sourcedClips: SourcedVideo[],
   totalDuration: number = 30,
   preferredStyle?: DirectorStyle,
-  apiKey?: string
+  _apiKey?: string
 ): Promise<DirectorPlan> {
-  const activeKey = apiKey || (window as any).__GEMINI_API_KEY__ || process.env.GEMINI_API_KEY || '';
-
-  // Fallback cleanly to deterministic heuristic director plan if key missing or clips empty
-  if (!activeKey || !sourcedClips || sourcedClips.length === 0) {
+  // Fallback cleanly to deterministic heuristic director plan if clips empty
+  if (!sourcedClips || sourcedClips.length === 0) {
     console.log('[AI_DIRECTOR] Using high-fidelity heuristic director plan.');
     return generateHeuristicDirectorPlan(scriptText, sourcedClips, totalDuration, preferredStyle);
   }
 
   try {
-    const ai = new GoogleGenAI({
-      apiKey: activeKey,
-      httpOptions: {
-        headers: { 'User-Agent': 'vixora-ai-director' }
-      }
-    });
 
     const clipSummaries = sourcedClips.map((c, i) => ({
       index: i,
@@ -426,77 +418,82 @@ Requirements:
 3. For each scene (corresponding to the clips provided), produce exact timing (startTime, endTime), trim timestamps, playback speed (0.9 to 1.25), cameraMotion ("zoom_in_slow", "zoom_out_reveal", "punch_in_beat", "pan_left", "pan_right", "camera_shake", "static_focus"), transitions ("flash_zoom", "whip_pan", "crossfade", "glitch_cut", "light_leak", "hard_cut"), and high-impact motionGraphics layers (lower thirds, kinetic badges, stat counters, animated icons).
 4. Ensure the total duration of all scenes equals ${totalDuration.toFixed(1)} seconds.`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            videoTitle: { type: Type.STRING },
-            detectedStyle: { 
-              type: Type.STRING, 
-              enum: ['viral_social', 'cinematic_motivational', 'clean_commercial', 'educational_explainer', 'narrative_storytelling'] 
-            },
-            targetAudience: { type: Type.STRING },
-            coreEmotion: { type: Type.STRING },
-            pacingRhythm: { type: Type.STRING, enum: ['fast_viral', 'cinematic_steady', 'dynamic_rhythmic'] },
-            colorGrade: { 
-              type: Type.STRING, 
-              enum: ['cinematic_teal_orange', 'warm_gold_luxury', 'cyber_neon', 'vibrant_viral', 'clean_commercial', 'noir_dramatic', 'papercut_warm', 'natural_raw'] 
-            },
-            overallDirectorRationale: { type: Type.STRING },
-            scenes: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  sceneIndex: { type: Type.INTEGER },
-                  scriptExcerpt: { type: Type.STRING },
-                  startTime: { type: Type.NUMBER },
-                  endTime: { type: Type.NUMBER },
-                  duration: { type: Type.NUMBER },
-                  trimStart: { type: Type.NUMBER },
-                  trimEnd: { type: Type.NUMBER },
-                  speed: { type: Type.NUMBER },
-                  cameraMotion: { 
-                    type: Type.STRING, 
-                    enum: ['zoom_in_slow', 'zoom_out_reveal', 'punch_in_beat', 'pan_left', 'pan_right', 'camera_shake', 'static_focus'] 
-                  },
-                  colorGrade: { type: Type.STRING },
-                  transitionIn: { type: Type.STRING, enum: ['flash_zoom', 'whip_pan', 'crossfade', 'glitch_cut', 'light_leak', 'hard_cut'] },
-                  transitionOut: { type: Type.STRING, enum: ['flash_zoom', 'whip_pan', 'crossfade', 'glitch_cut', 'light_leak', 'hard_cut'] },
-                  directorNotes: { type: Type.STRING },
-                  motionGraphics: {
-                    type: Type.ARRAY,
-                    items: {
-                      type: Type.OBJECT,
-                      properties: {
-                        type: { type: Type.STRING, enum: ['lower_third', 'kinetic_badge', 'stat_counter', 'animated_icon', 'papercut_frame', 'progress_bar', 'callout_card'] },
-                        title: { type: Type.STRING },
-                        subtitle: { type: Type.STRING },
-                        metricValue: { type: Type.STRING },
-                        accentColor: { type: Type.STRING },
-                        position: { type: Type.STRING, enum: ['top_left', 'top_right', 'bottom_left', 'bottom_right', 'center', 'top_bar', 'bottom_bar'] },
-                        enterTime: { type: Type.NUMBER },
-                        exitTime: { type: Type.NUMBER },
-                        animation: { type: Type.STRING, enum: ['slide_up', 'pop_in', 'fade_scale', 'bounce', 'stamp'] }
-                      },
-                      required: ['type', 'title', 'accentColor', 'position', 'enterTime', 'exitTime', 'animation']
+    const apiRes = await fetch('/api/gemini/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: "gemini-3.1-flash-lite",
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              videoTitle: { type: Type.STRING },
+              detectedStyle: { 
+                type: Type.STRING, 
+                enum: ['viral_social', 'cinematic_motivational', 'clean_commercial', 'educational_explainer', 'narrative_storytelling'] 
+              },
+              targetAudience: { type: Type.STRING },
+              coreEmotion: { type: Type.STRING },
+              pacingRhythm: { type: Type.STRING, enum: ['fast_viral', 'cinematic_steady', 'dynamic_rhythmic'] },
+              colorGrade: { 
+                type: Type.STRING, 
+                enum: ['cinematic_teal_orange', 'warm_gold_luxury', 'cyber_neon', 'vibrant_viral', 'clean_commercial', 'noir_dramatic', 'papercut_warm', 'natural_raw'] 
+              },
+              overallDirectorRationale: { type: Type.STRING },
+              scenes: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    sceneIndex: { type: Type.INTEGER },
+                    scriptExcerpt: { type: Type.STRING },
+                    startTime: { type: Type.NUMBER },
+                    endTime: { type: Type.NUMBER },
+                    duration: { type: Type.NUMBER },
+                    trimStart: { type: Type.NUMBER },
+                    trimEnd: { type: Type.NUMBER },
+                    speed: { type: Type.NUMBER },
+                    cameraMotion: { 
+                      type: Type.STRING, 
+                      enum: ['zoom_in_slow', 'zoom_out_reveal', 'punch_in_beat', 'pan_left', 'pan_right', 'camera_shake', 'static_focus'] 
+                    },
+                    colorGrade: { type: Type.STRING },
+                    transitionIn: { type: Type.STRING, enum: ['flash_zoom', 'whip_pan', 'crossfade', 'glitch_cut', 'light_leak', 'hard_cut'] },
+                    transitionOut: { type: Type.STRING, enum: ['flash_zoom', 'whip_pan', 'crossfade', 'glitch_cut', 'light_leak', 'hard_cut'] },
+                    directorNotes: { type: Type.STRING },
+                    motionGraphics: {
+                      type: Type.ARRAY,
+                      items: {
+                        type: Type.OBJECT,
+                        properties: {
+                          type: { type: Type.STRING, enum: ['lower_third', 'kinetic_badge', 'stat_counter', 'animated_icon', 'papercut_frame', 'progress_bar', 'callout_card'] },
+                          title: { type: Type.STRING },
+                          subtitle: { type: Type.STRING },
+                          metricValue: { type: Type.STRING },
+                          accentColor: { type: Type.STRING },
+                          position: { type: Type.STRING, enum: ['top_left', 'top_right', 'bottom_left', 'bottom_right', 'center', 'top_bar', 'bottom_bar'] },
+                          enterTime: { type: Type.NUMBER },
+                          exitTime: { type: Type.NUMBER },
+                          animation: { type: Type.STRING, enum: ['slide_up', 'pop_in', 'fade_scale', 'bounce', 'stamp'] }
+                        },
+                        required: ['type', 'title', 'accentColor', 'position', 'enterTime', 'exitTime', 'animation']
+                      }
                     }
-                  }
-                },
-                required: ['sceneIndex', 'scriptExcerpt', 'startTime', 'endTime', 'duration', 'cameraMotion', 'transitionIn', 'transitionOut', 'directorNotes']
+                  },
+                  required: ['sceneIndex', 'scriptExcerpt', 'startTime', 'endTime', 'duration', 'cameraMotion', 'transitionIn', 'transitionOut', 'directorNotes']
+                }
               }
-            }
-          },
-          required: ['videoTitle', 'detectedStyle', 'targetAudience', 'coreEmotion', 'pacingRhythm', 'colorGrade', 'overallDirectorRationale', 'scenes']
+            },
+            required: ['videoTitle', 'detectedStyle', 'targetAudience', 'coreEmotion', 'pacingRhythm', 'colorGrade', 'overallDirectorRationale', 'scenes']
+          }
         }
-      }
+      })
     });
 
-    const parsed = JSON.parse(response.text || '{}');
+    const apiData = await apiRes.json();
+    const parsed = JSON.parse(apiData.text || '{}');
     if (!parsed || !parsed.scenes || parsed.scenes.length === 0) {
       throw new Error("AI Director did not return valid scenes structure");
     }

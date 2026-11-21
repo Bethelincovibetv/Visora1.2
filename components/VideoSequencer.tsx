@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { GoogleGenAI, Type } from "@google/genai";
+import { Type } from "@google/genai";
 import { PRESET_MUSIC_TRACKS } from '../constants';
 import { PRESET_SFX_CATALOG, playProceduralSFX } from '../sfxLibrary';
 import { SFXPlacement, VideoTemplate } from '../types';
@@ -713,23 +713,18 @@ export const VideoSequencer: React.FC<VideoSequencerProps> = ({
 
     const detectMoodAndSearch = async () => {
       try {
-        const activeApiKey = (window as any).__GEMINI_API_KEY__ || process.env.GEMINI_API_KEY || '';
-        // If no credentials, we silent fallback cleanly to default motivational selection
-        if (!activeApiKey) return;
-
-        const ai = new GoogleGenAI({
-          apiKey: activeApiKey,
-          httpOptions: {
-            headers: { 'User-Agent': 'aistudio-build' }
-          }
-        });
-
         const prompt = `Analyze the script text below. Determine the single most dominant mood or theme of this script. Select EXACTLY one of the following words: "motivational", "calm", "upbeat", "dramatic", "tech", "corporate".\n\nScript: "${scriptText.replace(/"/g, '\\"')}"`;
 
-        const response = await ai.models.generateContent({
-          model: "gemini-2.5-flash",
-          contents: prompt
+        const apiRes = await fetch('/api/gemini/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: "gemini-3.1-flash-lite",
+            contents: prompt
+          })
         });
+        const response = await apiRes.json();
+        if (!apiRes.ok || !response.ok) return;
 
         const moodText = response.text?.trim().toLowerCase() || 'motivational';
         let matchedMood = 'motivational';
@@ -853,54 +848,48 @@ export const VideoSequencer: React.FC<VideoSequencerProps> = ({
       setIsAligning(true);
       setAlignmentError(null);
       try {
-        const activeApiKey = (window as any).__GEMINI_API_KEY__ || process.env.GEMINI_API_KEY || process.env.API_KEY || '';
-        if (!activeApiKey) {
-          throw new Error("AI credentials uninitialized.");
-        }
-
         const wavBase64 = getWavBase64(voiceoverBase64);
-
-        const ai = new GoogleGenAI({
-          apiKey: activeApiKey,
-          httpOptions: {
-            headers: {
-              'User-Agent': 'aistudio-build',
-            }
-          }
-        });
 
         const prompt = `Analyze the provided voiceover speech audio and the script text below. ` +
           `Your task is to perform forced audio-to-text alignment to find the EXACT start and end timestamps (in seconds) for EVERY single word spoken in the audio. ` +
           `The spoken text in the audio is precisely: "${scriptText.replace(/"/g, '\\"')}"\n\n` +
           `Please output a JSON list of objects, representing every word in order. Ensure each word's start and end times correspond EXACTLY to when it is heard spoken in the audio. Do not skip or drop any word. Ensure word timings are fully continuous and aligned with standard speaker cadence.`;
 
-        const response = await ai.models.generateContent({
-          model: "gemini-2.5-flash",
-          contents: [
-            {
-              inlineData: {
-                data: wavBase64,
-                mimeType: "audio/wav"
-              }
-            },
-            { text: prompt }
-          ],
-          config: {
-            responseMimeType: "application/json",
-            responseSchema: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  text: { type: Type.STRING },
-                  start: { type: Type.NUMBER },
-                  end: { type: Type.NUMBER }
-                },
-                required: ["text", "start", "end"]
+        const apiRes = await fetch('/api/gemini/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: "gemini-3.1-flash-lite",
+            contents: [
+              {
+                inlineData: {
+                  data: wavBase64,
+                  mimeType: "audio/wav"
+                }
+              },
+              { text: prompt }
+            ],
+            config: {
+              responseMimeType: "application/json",
+              responseSchema: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    text: { type: Type.STRING },
+                    start: { type: Type.NUMBER },
+                    end: { type: Type.NUMBER }
+                  },
+                  required: ["text", "start", "end"]
+                }
               }
             }
-          }
+          })
         });
+        const response = await apiRes.json();
+        if (!apiRes.ok || !response.ok) {
+          throw new Error(response.error || "AIGenerator alignment failed.");
+        }
 
         const jsonText = response.text?.trim();
         if (!jsonText) {

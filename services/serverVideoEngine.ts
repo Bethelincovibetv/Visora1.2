@@ -34,6 +34,63 @@ export function getGemini(): GoogleGenAI {
   return geminiClient;
 }
 
+export function buildResilientModelList(requestedModel?: string): string[] {
+  const m = (requestedModel || '').trim();
+  if (m.includes('tts')) {
+    return Array.from(new Set([m, 'gemini-3.8-flash-lite-tts', 'gemini-3.1-flash-tts-preview']));
+  }
+  if (m.includes('image') || m.includes('live') || m.includes('omni') || m.includes('transcribe')) {
+    return [m];
+  }
+  if (m === 'gemini-4-hydrogen') {
+    return ['gemini-4-hydrogen', 'gemini-3.1-flash-lite'];
+  }
+  if (!m || m === 'gemini-2.5-flash' || m === 'gemini-3.8-flash' || m === 'gemini-3.1-flash-lite') {
+    return ['gemini-3.1-flash-lite', 'gemini-4-hydrogen'];
+  }
+  return Array.from(new Set([m, 'gemini-3.1-flash-lite', 'gemini-4-hydrogen']));
+}
+
+export async function generateContentResilient(options: {
+  model?: string;
+  contents: any;
+  config?: any;
+  client?: GoogleGenAI;
+}) {
+  const ai = options.client || getGemini();
+  const candidates = buildResilientModelList(options.model);
+  let lastError: any = null;
+
+  for (const candidateModel of candidates) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        return await ai.models.generateContent({
+          model: candidateModel,
+          contents: options.contents,
+          ...(options.config ? { config: options.config } : {}),
+        });
+      } catch (err: any) {
+        lastError = err;
+        const msg = String(err?.message || err || '');
+        const isTransient503 = msg.includes('503') || msg.includes('UNAVAILABLE') || msg.includes('high demand');
+        const isQuota429 = msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('quota');
+        const isNotFound = msg.includes('404') || msg.includes('NOT_FOUND') || msg.includes('not found');
+
+        if (isTransient503 && attempt === 0) {
+          await new Promise((r) => setTimeout(r, 550));
+          continue;
+        }
+        if (isQuota429 || isNotFound || isTransient503) {
+          break; // advance to next candidate model
+        }
+        throw err;
+      }
+    }
+  }
+
+  throw lastError || new Error('All Gemini fallback models failed.');
+}
+
 // Background Music catalog
 export const BGM_TRACKS: Record<string, string> = {
   motivational: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
@@ -406,16 +463,18 @@ async function runServerVideoPipeline(jobId: string): Promise<void> {
 
     let finalScript = job.script || '';
     if (!finalScript && job.topic) {
-      const ai = getGemini();
       const prompt = `You are an elite short-form video creator. Write a high-retention, viral script for a ${job.duration || '30s'} video about: "${job.topic}".
 Return ONLY the spoken narrator script text in 3-5 concise, punchy sentences without markdown bullet headers or director notes.`;
       
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-      });
-
-      finalScript = response.text?.trim() || `Discover the incredible world of ${job.topic}. Here is what you need to know to stay ahead.`;
+      try {
+        const response = await generateContentResilient({
+          model: 'gemini-3.1-flash-lite',
+          contents: prompt,
+        });
+        finalScript = response.text?.trim() || `Discover the incredible world of ${job.topic}. Here is what you need to know to stay ahead.`;
+      } catch {
+        finalScript = `Discover the incredible world of ${job.topic}. Here is what you need to know to stay ahead.`;
+      }
       updateJob(jobId, { script: finalScript });
     }
 
@@ -445,9 +504,8 @@ Return ONLY the spoken narrator script text in 3-5 concise, punchy sentences wit
       else if (v.includes('fenrir')) googleVoice = 'Fenrir';
       else if (v.includes('zephyr')) googleVoice = 'Zephyr';
 
-      const ai = getGemini();
-      const speechRes = await ai.models.generateContent({
-        model: 'gemini-3.1-flash-tts-preview',
+      const speechRes = await generateContentResilient({
+        model: 'gemini-3.8-flash-lite-tts',
         contents: finalScript,
         config: {
           responseModalities: [Modality.AUDIO],

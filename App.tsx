@@ -895,57 +895,48 @@ const App: React.FC = () => {
   };
 
   const generateGeminiContentWithFallback = async (
-    userApiKey: string | undefined,
+    _userApiKey: string | undefined,
     requestParams: {
       model?: string;
       contents: any;
       config?: any;
     }
   ) => {
-    const envKey = process.env.GEMINI_API_KEY || process.env.API_KEY || '';
-    const primaryKey = getEffectiveApiKey(userApiKey);
-    const targetModel = requestParams.model || "gemini-2.5-flash";
+    const requested = requestParams.model;
+    const targetModel = !requested || requested === "gemini-2.5-flash" ? "gemini-3.1-flash-lite" : requested;
 
-    // Attempt 1: Primary resolved key
-    try {
-      const ai = new GoogleGenAI({ apiKey: primaryKey });
-      return await ai.models.generateContent({
-        model: targetModel,
-        contents: requestParams.contents,
-        config: requestParams.config
+    const callProxy = async (modelName: string, configObj?: any) => {
+      const res = await fetch('/api/gemini/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: modelName,
+          contents: requestParams.contents,
+          ...(configObj ? { config: configObj } : {})
+        })
       });
-    } catch (err1: any) {
-      console.warn(`[Gemini API Attempt 1 failed with key ending ...${primaryKey.slice(-4) || 'none'}]:`, err1?.message || err1);
-
-      // Attempt 2: Environment Key fallback if primaryKey was a user-specific key
-      if (envKey && primaryKey !== envKey) {
-        try {
-          console.info("[Gemini API Retrying with system environment API Key...]");
-          const aiEnv = new GoogleGenAI({ apiKey: envKey });
-          return await aiEnv.models.generateContent({
-            model: targetModel,
-            contents: requestParams.contents,
-            config: requestParams.config
-          });
-        } catch (err2: any) {
-          console.warn("[Gemini API Attempt 2 with envKey failed]:", err2?.message || err2);
-        }
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || `Gemini server error (${res.status})`);
       }
+      return data;
+    };
 
-      // Attempt 3: Retry without tools parameter if present (e.g. googleSearch grounding tool)
+    try {
+      return await callProxy(targetModel, requestParams.config);
+    } catch (err1: any) {
+      console.warn(`[Gemini Proxy Attempt 1 (${targetModel}) failed]:`, err1?.message || err1);
+
       if (requestParams.config?.tools) {
         try {
-          console.info("[Gemini API Retrying without tools config...]");
-          const activeKey = envKey || primaryKey;
-          const aiNoTools = new GoogleGenAI({ apiKey: activeKey });
+          console.info("[Gemini Proxy Retrying without tools config...]");
           const { tools, ...configWithoutTools } = requestParams.config;
-          return await aiNoTools.models.generateContent({
-            model: targetModel,
-            contents: requestParams.contents,
-            config: Object.keys(configWithoutTools).length > 0 ? configWithoutTools : undefined
-          });
-        } catch (err3: any) {
-          console.warn("[Gemini API Attempt 3 without tools failed]:", err3?.message || err3);
+          return await callProxy(
+            'gemini-4-hydrogen',
+            Object.keys(configWithoutTools).length > 0 ? configWithoutTools : undefined
+          );
+        } catch (err2: any) {
+          console.warn("[Gemini Proxy Attempt 2 without tools failed]:", err2?.message || err2);
         }
       }
 
@@ -1432,7 +1423,7 @@ Structure: Full Masterclass / In-depth Documentary Script.
       // Intelligent scene-by-scene keyword extraction matching exact duration and script narrative
       try {
         const keywordResponse = await generateGeminiContentWithFallback(user?.apiKey, {
-          model: "gemini-2.5-flash",
+          model: "gemini-3.1-flash-lite",
           contents: `Analyze this video script: "${input}". 
           The target video duration is ${currentDuration}.
           Break the script down into EXACTLY ${sceneCount} sequential scene queries corresponding to what is being spoken in each scene.
@@ -1644,7 +1635,7 @@ Structure: Full Masterclass / In-depth Documentary Script.
       };
 
       const response = await generateGeminiContentWithFallback(user?.apiKey, {
-        model: "gemini-2.5-flash",
+        model: "gemini-3.1-flash-lite",
         contents: prompts[targetType],
       });
       setToolOutput(response.text?.replace(/\*/g, '') || '');
@@ -1718,7 +1709,7 @@ Structure: Full Masterclass / In-depth Documentary Script.
           - Return ONLY the script text ready for narration.`;
 
           const webResponse = await generateGeminiContentWithFallback(user?.apiKey, {
-            model: "gemini-2.5-flash",
+            model: "gemini-3.1-flash-lite",
             contents: webPrompt,
             config: { tools: [{ googleSearch: {} }] }
           });
@@ -1731,7 +1722,7 @@ Structure: Full Masterclass / In-depth Documentary Script.
       // If web search was off or web search grounded call failed, perform standard generation
       if (!text) {
         const response = await generateGeminiContentWithFallback(user?.apiKey, {
-          model: "gemini-2.5-flash",
+          model: "gemini-3.1-flash-lite",
           contents: promptText
         });
         text = response.text?.replace(/\*/g, '').trim() || '';
@@ -2136,7 +2127,7 @@ Structure: Full Masterclass / In-depth Documentary Script.
     let sceneQueries: string[] = [];
     try {
       const keywordResponse = await generateGeminiContentWithFallback(user?.apiKey, {
-        model: "gemini-2.5-flash",
+        model: "gemini-3.1-flash-lite",
         contents: `Analyze this video script: "${scriptText}". 
         The target duration is ${duration}.
         Break the script down into EXACTLY ${sceneCount} sequential scene search queries for stock video search.

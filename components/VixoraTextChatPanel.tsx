@@ -1603,7 +1603,7 @@ You advise creators on voice selection (Kore Nigerian accent, Ngozi, Chidinma, A
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-3.1-flash-lite',
             contents: historyTurns,
             config: {
               systemInstruction,
@@ -1620,11 +1620,10 @@ You advise creators on voice selection (Kore Nigerian accent, Ngozi, Chidinma, A
           })
         });
 
-        if (!apiRes.ok) {
-          throw new Error('Server-side AI chat generation failed');
-        }
-
         const apiData = await apiRes.json();
+        if (!apiRes.ok || !apiData.ok) {
+          throw new Error(apiData.error || 'Server-side AI chat generation failed');
+        }
         const responseTextVal = apiData.text || '';
         const functionCalls =
           apiData.candidates?.[0]?.content?.parts?.filter((p: any) => p.functionCall).map((p: any) => p.functionCall) ||
@@ -1677,14 +1676,16 @@ You advise creators on voice selection (Kore Nigerian accent, Ngozi, Chidinma, A
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
-                    model: 'gemini-2.5-flash',
+                    model: 'gemini-3.1-flash-lite',
                     contents: secondPassTurns,
                     config: { systemInstruction }
                   })
                 });
                 const secondData = await secondApiRes.json();
-                if (secondData.text) {
+                if (secondApiRes.ok && secondData.text) {
                   responseText = secondData.text;
+                } else if (!responseText) {
+                  responseText = `No wahala! I have executed ${fc.name}: ${toolResult.message}`;
                 }
               } catch (err) {
                 if (!responseText) {
@@ -1694,7 +1695,7 @@ You advise creators on voice selection (Kore Nigerian accent, Ngozi, Chidinma, A
             }
           }
         }
-      } catch (firstPassErr) {
+      } catch (firstPassErr: any) {
         console.warn('First pass chat model call fallback:', firstPassErr);
         if (currentController.signal.aborted) return;
         try {
@@ -1702,13 +1703,17 @@ You advise creators on voice selection (Kore Nigerian accent, Ngozi, Chidinma, A
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              model: 'gemini-2.5-flash',
+              model: 'gemini-4-hydrogen',
               contents: historyTurns,
               config: { systemInstruction }
             })
           });
           const fallbackData = await fallbackApiRes.json();
-          responseText = fallbackData.text || '';
+          if (fallbackApiRes.ok && fallbackData.text) {
+            responseText = fallbackData.text;
+          } else if (fallbackData?.error) {
+            responseText = `Notice: ${fallbackData.error}`;
+          }
         } catch (secondPassErr) {
           console.warn('Second pass fallback warning:', secondPassErr);
         }

@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { GoogleGenAI } from "@google/genai";
 import { ContentRoadmap, RoadmapItem, VideoTemplate } from '../types';
 import { 
   syncFirebaseSaveRoadmap, 
@@ -186,21 +185,24 @@ CORE DIRECTIVES:
    }
    [/TEMPLATE_JSON]`;
 
-      const ai = new GoogleGenAI({
-        apiKey: activeApiKey,
-        httpOptions: { headers: { 'User-Agent': 'aistudio-build' } }
-      });
-
       const prompt = `Creator Niche: ${niche}\nCreator Growth Goal: ${goal}\nCreator Question/Request: ${promptToUse}`;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-        config: {
-          systemInstruction,
-          temperature: 0.7
-        }
+      const apiRes = await fetch('/api/gemini/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'gemini-3.1-flash-lite',
+          contents: prompt,
+          config: {
+            systemInstruction,
+            temperature: 0.7
+          }
+        })
       });
+      const response = await apiRes.json();
+      if (!apiRes.ok || !response.ok) {
+        throw new Error(response.error || 'Content Master request failed');
+      }
 
       const responseText = response.text || "Praise God my dear creator! I am reviewing your request. How else can I guide your viral content journey today?";
 
@@ -266,12 +268,6 @@ CORE DIRECTIVES:
   const handleGenerateRoadmap = async () => {
     setIsLoading(true);
     try {
-      const activeApiKey = (window as any).__GEMINI_API_KEY__ || process.env.GEMINI_API_KEY || process.env.API_KEY || '';
-      const ai = new GoogleGenAI({
-        apiKey: activeApiKey,
-        httpOptions: { headers: { 'User-Agent': 'aistudio-build' } }
-      });
-
       const prompt = `Create a structured 4-Week Viral Content Roadmap for the niche "${niche}" with goal "${goal}".
 Return strictly valid JSON without markdown wrapping in this exact format:
 {
@@ -312,10 +308,18 @@ Return strictly valid JSON without markdown wrapping in this exact format:
   ]
 }`;
 
-      const res = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt
+      const apiRes = await fetch('/api/gemini/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'gemini-3.1-flash-lite',
+          contents: prompt
+        })
       });
+      const res = await apiRes.json();
+      if (!apiRes.ok || !res.ok) {
+        throw new Error(res.error || 'Roadmap generation failed');
+      }
 
       const rawText = res.text || '{}';
       const cleanJson = rawText.substring(rawText.indexOf('{'), rawText.lastIndexOf('}') + 1);

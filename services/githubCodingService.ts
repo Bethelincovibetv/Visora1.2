@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { getGemini } from './serverVideoEngine';
+import { generateContentResilient } from './serverVideoEngine';
 
 const execAsync = promisify(exec);
 
@@ -481,25 +481,15 @@ export async function enableGitHubPages(fullName: string, branch = 'main') {
 // ============================================================================
 
 export async function runGeminiCodeGen(prompt: string): Promise<string> {
-  const ai = getGemini();
-  const modelsToTry = ['gemini-3.8-flash', 'gemini-2.5-flash'];
-  let lastErr: any = null;
-
-  for (const model of modelsToTry) {
-    try {
-      const response = await ai.models.generateContent({
-        model,
-        contents: prompt,
-        config: {
-          responseMimeType: 'application/json',
-        },
-      });
-      if (response.text) return response.text;
-    } catch (err) {
-      lastErr = err;
-    }
-  }
-  throw lastErr || new Error('Gemini code generation failed.');
+  const response = await generateContentResilient({
+    model: 'gemini-3.1-flash-lite',
+    contents: prompt,
+    config: {
+      responseMimeType: 'application/json',
+    },
+  });
+  if (response.text) return response.text;
+  throw new Error('Gemini code generation returned empty response.');
 }
 
 export function parseJsonSafe<T = any>(raw: string): T {

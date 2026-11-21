@@ -1,5 +1,3 @@
-import { GoogleGenAI, Type } from '@google/genai';
-
 export interface FlyerItem {
   name: string;
   price: string;
@@ -231,18 +229,8 @@ export const FLYER_AD_PRESETS: FlyerAdPreset[] = [
 export async function extractFlyerWithGemini(
   imageBase64: string,
   mimeType: string = 'image/jpeg',
-  apiKey?: string
+  _apiKey?: string
 ): Promise<ExtractedFlyerData> {
-  const activeKey =
-    apiKey && !apiKey.includes('AIzaSyCBO1PRv5h9aQAB3rWb')
-      ? apiKey
-      : process.env.GEMINI_API_KEY || process.env.API_KEY || '';
-
-  if (!activeKey) {
-    throw new Error('Please provide a valid Gemini API key in your profile or environment.');
-  }
-
-  const ai = new GoogleGenAI({ apiKey: activeKey });
 
   const prompt = `You are "Flyer-to-Video Ad Studio" expert vision model.
 Analyze this flyer, poster, or business advertisement image thoroughly.
@@ -293,29 +281,38 @@ Output strictly valid JSON matching this schema:
   const cleanBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, '');
 
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
-      contents: [
-        {
-          role: 'user',
-          parts: [
-            { text: prompt },
-            {
-              inlineData: {
-                data: cleanBase64,
-                mimeType: mimeType
+    const apiRes = await fetch('/api/gemini/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'gemini-3.1-flash-lite',
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              { text: prompt },
+              {
+                inlineData: {
+                  data: cleanBase64,
+                  mimeType: mimeType
+                }
               }
-            }
-          ]
+            ]
+          }
+        ],
+        config: {
+          responseMimeType: 'application/json',
+          temperature: 0.1
         }
-      ],
-      config: {
-        responseMimeType: 'application/json',
-        temperature: 0.1
-      }
+      })
     });
 
-    const responseText = response.text || '{}';
+    const apiData = await apiRes.json();
+    if (!apiRes.ok || !apiData.ok) {
+      throw new Error(apiData.error || 'Server Gemini extraction failed');
+    }
+
+    const responseText = apiData.text || '{}';
     const parsed = JSON.parse(responseText) as ExtractedFlyerData;
 
     // Sanitize defaults
