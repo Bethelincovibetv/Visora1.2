@@ -1,5 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { VIXORA_AGENT_TOOLS, VixoraAppContext } from '../services/vixoraAgentTools';
+import {
+  VIXORA_AGENT_TOOLS,
+  VixoraAppContext,
+  CodingProgressData,
+  CodingResultData
+} from '../services/vixoraAgentTools';
 import vixoraAgentAvatar from '../src/assets/images/vixora_agent_avatar_1786108775324.jpg';
 
 export interface VideoResultData {
@@ -45,6 +50,8 @@ export interface ChatMessage {
   agentId?: string;
   videoCreationProgress?: VideoProgressData;
   videoResult?: VideoResultData;
+  codingProgress?: CodingProgressData;
+  codingResult?: CodingResultData;
 }
 
 export interface AgentPersona {
@@ -91,37 +98,37 @@ export const CLAUDE_STYLE_AGENTS: AgentPersona[] = [
     id: 'vixora_coach',
     name: 'Vixora AI Assistant',
     shortName: 'Vixora',
-    title: 'Executive Producer & Master App Commander',
-    tagline: 'The Ultimate All-in-One Creator AI for Scripts, Videos, TTS & Studio Control',
+    title: 'Executive Producer & Autonomous GitHub Software Engineer',
+    tagline: 'Ultimate All-in-One AI for Videos, Apps, Websites, GitHub Repos & Self-Healing',
     icon: 'fa-bolt-lightning',
-    badge: 'ULTIMATE MASTER AI',
+    badge: 'VIDEO + CODING AI',
     color: 'text-amber-500',
     gradient: 'from-amber-500 via-orange-500 to-red-500',
-    welcomeText: "How far my creator! 👋 I am Vixora, your Ultimate AI Studio Assistant and Executive Producer. I handle everything for you across all tools—writing viral scripts, cooking autopilot videos, sourcing HD stock clips, generating voiceovers, tuning SEO growth tags, and controlling the app in real time! What are we cooking today?",
+    welcomeText: "How far my creator! 👋 I am Vixora, your Ultimate AI Studio Assistant, Video Producer, and Autonomous Software Engineer! I can cook complete viral videos, manage your GitHub repositories, build full websites and web apps straight into GitHub, modify Vixora repos, and run self-diagnostics to fix code issues automatically. What are we building or cooking today?",
     suggestedPrompts: [
+      {
+        title: 'Build Website on GitHub',
+        desc: 'Architect, code & commit a live web app',
+        prompt: 'Build a modern SaaS landing website for an AI Fitness Coach and push it to a new GitHub repo',
+        icon: 'fa-globe'
+      },
+      {
+        title: 'Manage & Edit GitHub Repos',
+        desc: 'List repos, inspect & upgrade code',
+        prompt: 'List my GitHub repositories and show which ones are Vixora projects',
+        icon: 'fa-code-branch'
+      },
+      {
+        title: 'Self-Heal & Check Vixora',
+        desc: 'Run diagnostics & auto-fix issues',
+        prompt: 'Run a full Vixora self-diagnostic check and tell me if any code problem needs fixing',
+        icon: 'fa-screwdriver-wrench'
+      },
       {
         title: 'Cook a 30s Viral Video',
         desc: 'Autopilot generation for Finance & Wealth',
         prompt: 'Cook a viral 30-second TikTok video about 5 Money Rules for Wealth on autopilot',
         icon: 'fa-wand-magic-sparkles'
-      },
-      {
-        title: 'Write a High-Retention Script',
-        desc: 'Psychology or motivation script',
-        prompt: 'Write a high-retention 30-second script on dark psychology body language hacks',
-        icon: 'fa-scroll'
-      },
-      {
-        title: 'Set Voice to Nigerian Accent',
-        desc: 'Switch to Kore Nigerian female tone',
-        prompt: 'Switch narrator voice to Kore Nigerian accent and open voiceover studio',
-        icon: 'fa-waveform-lines'
-      },
-      {
-        title: 'Generate High-CTR SEO Tags',
-        desc: 'Algorithm optimization & titles',
-        prompt: 'Generate 5 high-CTR titles and 20 SEO tags for a viral tech and AI breakthrough video',
-        icon: 'fa-chart-line'
       }
     ]
   }
@@ -519,6 +526,341 @@ export const ChatVideoResultCard: React.FC<{
   );
 };
 
+// --- CHAT CODING & GITHUB PROGRESS CARD COMPONENT ---
+
+export const ChatCodingProgressCard: React.FC<{ progress: CodingProgressData }> = ({ progress }) => {
+  const modeLabel =
+    progress.mode === 'self-heal'
+      ? 'Self-Healing Engineer'
+      : progress.mode === 'modify'
+      ? 'GitHub Repo Editor'
+      : progress.mode === 'repo'
+      ? 'GitHub Repo Manager'
+      : 'Full-Stack App Builder';
+
+  return (
+    <div className="w-full mt-3 p-3.5 sm:p-4 rounded-2xl bg-gradient-to-br from-slate-900/95 via-slate-950/95 to-indigo-950/60 border border-cyan-500/40 shadow-2xl space-y-3 animate-rise">
+      <div className="flex items-center justify-between text-xs">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-lg bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 flex items-center justify-center text-[10px] animate-pulse">
+            <i className="fa-solid fa-code"></i>
+          </div>
+          <div>
+            <span className="font-black uppercase tracking-wider text-[10px] text-cyan-400 flex items-center gap-1.5">
+              <span>Vixora Coding Agent</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+            </span>
+            <p className="text-[8.5px] text-slate-400 font-bold uppercase tracking-wider">
+              {modeLabel}
+            </p>
+          </div>
+        </div>
+        <div className="px-2.5 py-1 rounded-full bg-cyan-500/15 border border-cyan-500/40 text-cyan-300 font-mono font-black text-xs">
+          {progress.percent}%
+        </div>
+      </div>
+
+      <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
+        <div
+          className="h-full bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-500 rounded-full transition-all duration-500"
+          style={{ width: `${Math.max(10, progress.percent)}%` }}
+        />
+      </div>
+
+      <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/5 space-y-1">
+        <div className="flex items-center justify-between text-[10px]">
+          <span className="font-black text-white uppercase tracking-tight flex items-center gap-1.5">
+            <i className="fa-solid fa-circle-notch animate-spin text-cyan-400"></i>
+            Step {progress.step}/{progress.totalSteps}: {progress.stepName}
+          </span>
+        </div>
+        <p className="text-[10px] text-slate-300 font-medium leading-relaxed">
+          {progress.detail}
+        </p>
+      </div>
+    </div>
+  );
+};
+
+// --- CHAT CODING & GITHUB RESULT CARD COMPONENT ---
+
+export const ChatCodingResultCard: React.FC<{
+  result: CodingResultData;
+  onQuickPrompt?: (prompt: string) => void;
+}> = ({ result, onQuickPrompt }) => {
+  const [activeView, setActiveView] = useState<'preview' | 'code' | 'repos'>(
+    result.previewHtml
+      ? 'preview'
+      : result.repos && result.repos.length > 0 && result.kind === 'repos'
+      ? 'repos'
+      : 'code'
+  );
+  const [selectedFileIdx, setSelectedFileIdx] = useState(0);
+  const [copiedCode, setCopiedCode] = useState(false);
+
+  const files = result.files || [];
+  const activeFile = files[selectedFileIdx] || files[0];
+
+  const handleCopyCode = () => {
+    if (!activeFile) return;
+    try {
+      navigator.clipboard.writeText(activeFile.content);
+      setCopiedCode(true);
+      setTimeout(() => setCopiedCode(false), 2000);
+    } catch {}
+  };
+
+  return (
+    <div className="w-full mt-3 rounded-2xl overflow-hidden border border-cyan-500/40 bg-slate-950/95 shadow-2xl text-white animate-rise">
+      {/* Header */}
+      <div className="p-3 bg-gradient-to-r from-cyan-600/25 via-blue-600/20 to-slate-900/80 border-b border-white/10 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="w-7 h-7 rounded-lg bg-cyan-500 text-slate-950 flex items-center justify-center text-xs shrink-0 shadow-md">
+            <i className={`fa-solid ${result.kind === 'self-heal' ? 'fa-screwdriver-wrench' : 'fa-code-branch'}`}></i>
+          </div>
+          <div className="min-w-0">
+            <h4 className="text-xs font-black uppercase tracking-tight text-white truncate">
+              {result.title}
+            </h4>
+            <div className="flex flex-wrap items-center gap-1.5 text-[8.5px] font-bold text-slate-300">
+              {result.fullName && (
+                <span className="px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-mono">
+                  {result.fullName}
+                </span>
+              )}
+              {result.branch && <span>branch: {result.branch}</span>}
+              {result.commitSha && (
+                <span className="text-emerald-400 font-mono">
+                  #{result.commitSha.slice(0, 7)}
+                </span>
+              )}
+              {result.diagnostics && (
+                <span
+                  className={`px-1.5 py-0.2 rounded font-black uppercase ${
+                    result.diagnostics.ok
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                      : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                  }`}
+                >
+                  {result.diagnostics.ok ? 'TypeCheck Passed' : `${result.diagnostics.errors.length} Issues Found`}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1.5 shrink-0">
+          {result.repoUrl && (
+            <a
+              href={result.repoUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 border border-white/15 text-[9px] font-black uppercase tracking-wider flex items-center gap-1 text-white"
+            >
+              <i className="fa-brands fa-github"></i>
+              <span>Repo</span>
+            </a>
+          )}
+          {result.commitUrl && (
+            <a
+              href={result.commitUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-2.5 py-1 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-[9px] font-black uppercase tracking-wider flex items-center gap-1 text-cyan-300"
+            >
+              <i className="fa-solid fa-code-commit"></i>
+              <span>Commit</span>
+            </a>
+          )}
+          {result.pagesUrl && (
+            <a
+              href={result.pagesUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-[9px] font-black uppercase tracking-wider flex items-center gap-1 text-emerald-300"
+            >
+              <i className="fa-solid fa-globe"></i>
+              <span>Pages</span>
+            </a>
+          )}
+        </div>
+      </div>
+
+      {/* View Switcher Tabs */}
+      {(result.previewHtml || files.length > 0 || (result.repos && result.repos.length > 0)) && (
+        <div className="px-3 pt-2 bg-slate-900/60 border-b border-white/10 flex items-center gap-2">
+          {result.previewHtml && (
+            <button
+              type="button"
+              onClick={() => setActiveView('preview')}
+              className={`px-3 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-t-lg border-b-2 transition-all cursor-pointer ${
+                activeView === 'preview'
+                  ? 'border-cyan-400 text-cyan-300 bg-white/5'
+                  : 'border-transparent text-slate-400 hover:text-white'
+              }`}
+            >
+              <i className="fa-solid fa-desktop mr-1.5"></i>Live Preview
+            </button>
+          )}
+          {files.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setActiveView('code')}
+              className={`px-3 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-t-lg border-b-2 transition-all cursor-pointer ${
+                activeView === 'code'
+                  ? 'border-cyan-400 text-cyan-300 bg-white/5'
+                  : 'border-transparent text-slate-400 hover:text-white'
+              }`}
+            >
+              <i className="fa-solid fa-file-code mr-1.5"></i>Files ({files.length})
+            </button>
+          )}
+          {result.repos && result.repos.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setActiveView('repos')}
+              className={`px-3 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-t-lg border-b-2 transition-all cursor-pointer ${
+                activeView === 'repos'
+                  ? 'border-cyan-400 text-cyan-300 bg-white/5'
+                  : 'border-transparent text-slate-400 hover:text-white'
+              }`}
+            >
+              <i className="fa-brands fa-github mr-1.5"></i>Repositories ({result.repos.length})
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Diagnostics / Root Cause Summary */}
+      {(result.diagnosis || result.diagnostics) && (
+        <div className="p-3 bg-slate-900/50 border-b border-white/10 space-y-1.5 text-[11px]">
+          {result.diagnosis && (
+            <p className="text-slate-200 leading-relaxed">
+              <span className="font-black uppercase text-[9px] text-cyan-400 mr-1.5">Diagnosis:</span>
+              {result.diagnosis}
+            </p>
+          )}
+          {result.diagnostics && !result.diagnostics.ok && result.diagnostics.errors.length > 0 && (
+            <pre className="p-2 rounded-lg bg-black/60 border border-red-500/30 text-red-300 font-mono text-[9.5px] overflow-x-auto max-h-28">
+              {result.diagnostics.errors.join('\n')}
+            </pre>
+          )}
+        </div>
+      )}
+
+      {/* Live Website / App Interactive Iframe Preview */}
+      {activeView === 'preview' && result.previewHtml && (
+        <div className="w-full bg-white">
+          <iframe
+            title={result.title}
+            srcDoc={result.previewHtml}
+            sandbox="allow-scripts allow-forms"
+            className="w-full h-[360px] sm:h-[420px] border-0 bg-white"
+          />
+        </div>
+      )}
+
+      {/* Code & Files Inspector */}
+      {activeView === 'code' && files.length > 0 && (
+        <div className="p-3 space-y-2 bg-slate-950">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex gap-1.5 overflow-x-auto scrollbar-none pb-1">
+              {files.map((f, idx) => (
+                <button
+                  key={f.path}
+                  type="button"
+                  onClick={() => setSelectedFileIdx(idx)}
+                  className={`px-2.5 py-1 rounded-lg text-[9.5px] font-mono border shrink-0 cursor-pointer ${
+                    idx === selectedFileIdx
+                      ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300 font-bold'
+                      : 'bg-white/5 border-white/10 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  {f.path}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={handleCopyCode}
+              className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[9px] font-bold text-slate-300 shrink-0 cursor-pointer"
+            >
+              <i className={`fa-solid ${copiedCode ? 'fa-check text-emerald-400' : 'fa-copy'} mr-1`}></i>
+              {copiedCode ? 'Copied' : 'Copy'}
+            </button>
+          </div>
+          {activeFile?.reason && (
+            <p className="text-[10px] text-cyan-300 italic">{activeFile.reason}</p>
+          )}
+          <pre className="p-3 rounded-xl bg-black/70 border border-white/10 text-[10px] leading-relaxed text-slate-200 font-mono overflow-auto max-h-64">
+            {activeFile?.content}
+          </pre>
+        </div>
+      )}
+
+      {/* GitHub Repositories List */}
+      {activeView === 'repos' && result.repos && result.repos.length > 0 && (
+        <div className="p-3 space-y-1.5 max-h-72 overflow-y-auto bg-slate-950">
+          {result.repos.map(repo => (
+            <div
+              key={repo.full_name}
+              className="p-2.5 rounded-xl bg-white/[0.03] border border-white/10 flex flex-wrap items-center justify-between gap-2"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <a
+                    href={repo.html_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[11px] font-bold text-cyan-300 hover:underline truncate"
+                  >
+                    {repo.full_name}
+                  </a>
+                  <span className="px-1.5 py-0.2 rounded text-[8px] font-bold uppercase bg-white/10 text-slate-300">
+                    {repo.private ? 'Private' : 'Public'}
+                  </span>
+                  {repo.is_vixora_repo && (
+                    <span className="px-1.5 py-0.2 rounded text-[8px] font-black uppercase bg-orange-500/20 text-orange-300 border border-orange-500/40">
+                      Vixora Repo
+                    </span>
+                  )}
+                </div>
+                {repo.description && (
+                  <p className="text-[9.5px] text-slate-400 truncate mt-0.5">{repo.description}</p>
+                )}
+              </div>
+              {onQuickPrompt && (
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => onQuickPrompt(`Inspect the file tree of GitHub repo ${repo.full_name}`)}
+                    className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/15 border border-white/10 text-[9px] font-bold text-slate-200 cursor-pointer"
+                  >
+                    Inspect
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onQuickPrompt(
+                        repo.is_vixora_repo
+                          ? `Sync my latest Vixora Studio updates to GitHub repo ${repo.full_name}`
+                          : `Modify GitHub repo ${repo.full_name} to add a clean responsive improvements update`
+                      )
+                    }
+                    className="px-2 py-1 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-[9px] font-bold text-cyan-300 cursor-pointer"
+                  >
+                    {repo.is_vixora_repo ? 'Sync Vixora' : 'Modify'}
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const VixoraTextChatPanel: React.FC<VixoraTextChatPanelProps> = ({
   isOpen,
   onClose,
@@ -609,11 +951,101 @@ export const VixoraTextChatPanel: React.FC<VixoraTextChatPanelProps> = ({
   const [attachedFile, setAttachedFile] = useState<{ name: string; text: string } | null>(null);
   const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
 
+  // GitHub Coding Agent State
+  const [githubStatus, setGithubStatus] = useState<{
+    connected: boolean;
+    login?: string;
+    avatarUrl?: string;
+    reposCount?: number;
+  }>({ connected: false });
+  const [isGitHubModalOpen, setIsGitHubModalOpen] = useState(false);
+  const [githubTokenInput, setGithubTokenInput] = useState('');
+  const [githubReposList, setGithubReposList] = useState<any[]>([]);
+  const [githubConnectError, setGithubConnectError] = useState<string | null>(null);
+  const [isGitHubLoading, setIsGitHubLoading] = useState(false);
+
   const imageInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
+
+  const refreshGitHubStatus = async () => {
+    try {
+      const res = await fetch('/api/github/status');
+      const data = await res.json();
+      if (data.connected && data.user) {
+        setGithubStatus({
+          connected: true,
+          login: data.user.login,
+          avatarUrl: data.user.avatar_url,
+          reposCount: (data.user.public_repos || 0) + (data.user.total_private_repos || 0)
+        });
+      } else {
+        setGithubStatus({ connected: false });
+      }
+    } catch {
+      setGithubStatus({ connected: false });
+    }
+  };
+
+  const loadGitHubReposForModal = async () => {
+    setIsGitHubLoading(true);
+    setGithubConnectError(null);
+    try {
+      const res = await fetch('/api/github/repos');
+      const data = await res.json();
+      if (data.ok && Array.isArray(data.repos)) {
+        setGithubReposList(data.repos);
+      } else if (data.error) {
+        setGithubConnectError(data.error);
+      }
+    } catch (err: any) {
+      setGithubConnectError(err?.message || 'Failed to load repositories.');
+    } finally {
+      setIsGitHubLoading(false);
+    }
+  };
+
+  const handleConnectGitHubToken = async (tokenValue: string) => {
+    const clean = tokenValue.trim();
+    if (!clean) return;
+    setIsGitHubLoading(true);
+    setGithubConnectError(null);
+    try {
+      const res = await fetch('/api/github/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: clean })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        setGithubConnectError(data.error || 'GitHub authentication failed.');
+        return false;
+      }
+      setGithubTokenInput('');
+      await refreshGitHubStatus();
+      await loadGitHubReposForModal();
+      return true;
+    } catch (err: any) {
+      setGithubConnectError(err?.message || 'Failed to connect GitHub token.');
+      return false;
+    } finally {
+      setIsGitHubLoading(false);
+    }
+  };
+
+  const handleDisconnectGitHub = async () => {
+    try {
+      await fetch('/api/github/config', { method: 'DELETE' });
+      setGithubStatus({ connected: false });
+      setGithubReposList([]);
+    } catch {}
+  };
+
+  useEffect(() => {
+    refreshGitHubStatus();
+  }, []);
 
   // Sync sessions to localStorage
   useEffect(() => {
@@ -834,6 +1266,27 @@ export const VixoraTextChatPanel: React.FC<VixoraTextChatPanelProps> = ({
     abortControllerRef.current = currentController;
 
     let fullPromptText = textToSend;
+    let displayUserText = textToSend;
+
+    let connectedViaInlinePat = false;
+    // Intercept pasted GitHub PATs cleanly so raw tokens are saved server-side & never stored in chat logs
+    const patMatch = textToSend.match(/(?:github_pat_[A-Za-z0-9_]+|ghp_[A-Za-z0-9]+)/);
+    if (patMatch) {
+      const extractedPat = patMatch[0];
+      const connectedOk = Boolean(await handleConnectGitHubToken(extractedPat));
+      connectedViaInlinePat = connectedOk;
+      const masked = '[GitHub Token Connected Securely]';
+      displayUserText = textToSend.replace(extractedPat, masked).trim() || masked;
+      fullPromptText = textToSend
+        .replace(
+          extractedPat,
+          connectedOk
+            ? 'My GitHub account is now connected via token.'
+            : 'I attempted to connect a GitHub token.'
+        )
+        .trim();
+    }
+
     if (attachedFile) {
       fullPromptText += `\n\n[Attached File Content (${attachedFile.name})]:\n${attachedFile.text.slice(0, 3000)}`;
     }
@@ -842,7 +1295,7 @@ export const VixoraTextChatPanel: React.FC<VixoraTextChatPanelProps> = ({
     const userMsg: ChatMessage = {
       id: userMsgId,
       sender: 'user',
-      text: textToSend || (attachedImage ? 'Uploaded an image for analysis' : 'Uploaded a file'),
+      text: displayUserText || (attachedImage ? 'Uploaded an image for analysis' : 'Uploaded a file'),
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       imageUrl: attachedImage || undefined,
       attachedFile: attachedFile ? { name: attachedFile.name } : undefined
@@ -860,8 +1313,8 @@ export const VixoraTextChatPanel: React.FC<VixoraTextChatPanelProps> = ({
 
     // Auto-update session title from first user prompt if still default
     let sessionNewTitle = activeSession?.title;
-    if (activeSession?.title === 'New Conversation' && textToSend) {
-      sessionNewTitle = textToSend.slice(0, 35) + (textToSend.length > 35 ? '...' : '');
+    if (activeSession?.title === 'New Conversation' && displayUserText) {
+      sessionNewTitle = displayUserText.slice(0, 35) + (displayUserText.length > 35 ? '...' : '');
     }
 
     // Update active session with user message + thinking state
@@ -889,11 +1342,16 @@ export const VixoraTextChatPanel: React.FC<VixoraTextChatPanelProps> = ({
       // Build Specialized Agent System Instructions
       let systemInstruction = '';
       if (activeAgent.id === 'vixora_coach') {
-        systemInstruction = `You are 'Vixora' (Visora AI), the highly energetic, vibrant, warm, and brilliant Nigerian AI Creator Assistant & Video Producer! Address the user warmly by name (${appContext.userFullName || 'Creator'}). Your voice and vibe are 100% highly energetic, lively, witty, supportive, creative, and enthusiastic with authentic, warm Nigerian energy (e.g., "No wahala at all!", "Oya let's cook this viral masterpiece!", "I hear you crystal clear!"). Speak dynamically with high energy. No asterisks (*).
+        systemInstruction = `You are 'Vixora' (Visora AI), the Ultimate All-in-One Nigerian AI Creator Assistant, Video Producer, and Autonomous Principal Software Engineer! Address the user warmly by name (${appContext.userFullName || 'Creator'}). Your voice and vibe are energetic, sharp, witty, creative, and deeply technical. No asterisks (*).
 
-YOUR MANDATE:
-You can CONTROL the Vixora AI Studio app directly for the user using function calls/tools!
-Whenever the user asks you to open the profile page, configure API keys, make a video, switch tabs, change voice, edit script, change caption style, generate a flyer, or learn a skill, CALL THE APPROPRIATE TOOL!`;
+YOUR MANDATE & TOOLS:
+1. VIDEO PRODUCTION & STUDIO CONTROL: Use configureAndCreateAutopilotVideo, navigateToTab, changeVoiceoverSettings, changeCaptionStyle, editVideoScript, generateFlyerImage, setVideoPreferences, changeMusicSettings, directVideoMotionGraphics.
+2. GITHUB CODING & REPOSITORY ENGINEERING:
+   - Use manageGitHubRepositories to check connection status, list the user's GitHub repos (including Vixora repos), inspect file trees, read code files, or create new repos.
+   - Use buildWebsiteOrAppOnGitHub whenever the user wants you to create/build a website, landing page, web app, dashboard, portfolio, or e-commerce app using GitHub (it generates complete code, commits to GitHub, enables Pages, and shows a live interactive preview right in chat).
+   - Use modifyGitHubRepository whenever the user asks to edit, fix, upgrade, or modify code in any existing GitHub repository (including Vixora repos).
+   - Use selfDiagnoseAndUpdateVixora whenever the user asks Vixora to check itself for bugs/problems, self-update/self-heal its own source code, or sync the Vixora codebase to a GitHub repo.
+Current GitHub status: ${githubStatus.connected || connectedViaInlinePat ? `Connected${githubStatus.login ? ` as @${githubStatus.login}` : ''}` : 'Not connected yet'}.`;
       } else if (activeAgent.id === 'video_director') {
         systemInstruction = `You are the 'Viral Video Director' agent inside Vixora Studio. You are an elite cinematic Short-form video director (TikTok, Reels, YouTube Shorts).
 Your focus is visual storytelling, camera angles, lighting, scene duration, B-roll queries for stock engines, and 3-second visual retention hooks.
@@ -941,10 +1399,33 @@ You advise creators on voice selection (Kore Nigerian accent, Ngozi, Chidinma, A
       let generatedImageUrl: string | undefined;
       let targetNavTab: string | undefined;
       let createdVideoResult: VideoResultData | undefined;
+      let createdCodingResult: CodingResultData | undefined;
 
-      // Real-time Context with Live Stepper Progress Callback
+      // Real-time Context with Live Stepper Progress Callbacks
       const chatContext: VixoraAppContext = {
         ...appContext,
+        onCodingProgress: (prog) => {
+          setSessions(prev =>
+            prev.map(s => {
+              if (s.id === activeSessionId) {
+                return {
+                  ...s,
+                  messages: s.messages.map(m =>
+                    m.id === thinkingMsgId
+                      ? {
+                          ...m,
+                          codingProgress: prog,
+                          text: `⚙️ Step ${prog.step}/${prog.totalSteps}: ${prog.stepName} — ${prog.detail}`
+                        }
+                      : m
+                  ),
+                  updatedAt: new Date().toISOString()
+                };
+              }
+              return s;
+            })
+          );
+        },
         createAutomatedVideoWithAgent: async (opts) => {
           if (!appContext.createAutomatedVideoWithAgent) {
             throw new Error("Automated video engine is not ready.");
@@ -1025,6 +1506,9 @@ You advise creators on voice selection (Kore Nigerian accent, Ngozi, Chidinma, A
               }
               if (toolResult.data?.videoResult) {
                 createdVideoResult = toolResult.data.videoResult;
+              }
+              if (toolResult.data?.codingResult) {
+                createdCodingResult = toolResult.data.codingResult;
               }
               if (fc.name === 'navigateToTab' && fc.args?.tab) {
                 targetNavTab = String(fc.args.tab);
@@ -1160,7 +1644,8 @@ You advise creators on voice selection (Kore Nigerian accent, Ngozi, Chidinma, A
         imageUrl: generatedImageUrl,
         navigatedTab: targetNavTab,
         agentId: activeAgent.id,
-        videoResult: createdVideoResult
+        videoResult: createdVideoResult,
+        codingResult: createdCodingResult
       };
 
       setSessions(prev =>
@@ -1584,6 +2069,26 @@ You advise creators on voice selection (Kore Nigerian accent, Ngozi, Chidinma, A
 
             {/* HEADER RIGHT ACTIONS */}
             <div className="flex items-center gap-1.5 shrink-0">
+              {/* GitHub Coding Agent Connection Pill */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsGitHubModalOpen(true);
+                  if (githubStatus.connected) loadGitHubReposForModal();
+                }}
+                className={`py-1.5 px-2.5 rounded-xl border text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer ${
+                  githubStatus.connected
+                    ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/25'
+                    : 'bg-cyan-500/15 border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/25'
+                }`}
+                title="GitHub Coding Agent & Repositories"
+              >
+                <i className="fa-brands fa-github text-xs"></i>
+                <span className="hidden sm:inline">
+                  {githubStatus.connected ? `@${githubStatus.login}` : 'Connect GitHub'}
+                </span>
+              </button>
+
               {/* Agent Quick Switcher Dropdown Button */}
               <div className="relative">
                 <button
@@ -1825,6 +2330,8 @@ You advise creators on voice selection (Kore Nigerian accent, Ngozi, Chidinma, A
                       {msg.isThinking ? (
                         msg.videoCreationProgress ? (
                           <ChatVideoProgressCard progress={msg.videoCreationProgress} />
+                        ) : msg.codingProgress ? (
+                          <ChatCodingProgressCard progress={msg.codingProgress} />
                         ) : (
                           <div className="flex items-center gap-2 text-slate-400 py-1">
                             <i className="fa-solid fa-circle-notch animate-spin text-orange-400"></i>
@@ -1849,6 +2356,14 @@ You advise creators on voice selection (Kore Nigerian accent, Ngozi, Chidinma, A
                             }
                           }}
                           themeMode={themeMode}
+                        />
+                      )}
+
+                      {/* Interactive Coding & GitHub Result Card */}
+                      {msg.codingResult && (
+                        <ChatCodingResultCard
+                          result={msg.codingResult}
+                          onQuickPrompt={(p) => handleSendMessage(p)}
                         />
                       )}
 
@@ -2141,6 +2656,272 @@ You advise creators on voice selection (Kore Nigerian accent, Ngozi, Chidinma, A
           </footer>
         </main>
       </div>
+
+      {/* ================================================================= */}
+      {/* 3. GITHUB CODING AGENT & REPOSITORY MANAGER MODAL                 */}
+      {/* ================================================================= */}
+      {isGitHubModalOpen && (
+        <div
+          className="fixed inset-0 z-[320] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in"
+          onClick={() => setIsGitHubModalOpen(false)}
+        >
+          <div
+            className={`w-full max-w-2xl max-h-[88vh] flex flex-col rounded-3xl border shadow-2xl overflow-hidden ${
+              themeMode === 'light'
+                ? 'bg-white border-slate-200 text-slate-900'
+                : 'bg-slate-900 border-white/15 text-white'
+            }`}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="p-4 sm:p-5 border-b border-white/10 bg-gradient-to-r from-cyan-600/20 via-blue-600/15 to-slate-950 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-cyan-500 text-slate-950 flex items-center justify-center text-lg shadow-lg">
+                  <i className="fa-brands fa-github"></i>
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-black uppercase tracking-tight">
+                    GitHub Coding &amp; Vixora Repo Engine
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Connect GitHub to build web apps, modify Vixora repos, and run self-healing updates
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsGitHubModalOpen(false)}
+                className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center text-xs cursor-pointer"
+                title="Close modal"
+              >
+                <i className="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
+              {/* Connection Status & PAT Form */}
+              <div className="p-4 rounded-2xl border border-white/10 bg-slate-950/60 space-y-3">
+                {githubStatus.connected ? (
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      {githubStatus.avatarUrl && (
+                        <img
+                          src={githubStatus.avatarUrl}
+                          alt={githubStatus.login || 'GitHub'}
+                          className="w-10 h-10 rounded-xl border border-emerald-500/40"
+                        />
+                      )}
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-black text-white">@{githubStatus.login}</span>
+                          <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                            Connected
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400">
+                          {githubStatus.reposCount ?? githubReposList.length} repositories accessible
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={loadGitHubReposForModal}
+                        disabled={isGitHubLoading}
+                        className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-[10px] font-black uppercase tracking-wider cursor-pointer disabled:opacity-50"
+                      >
+                        <i className={`fa-solid fa-rotate mr-1 ${isGitHubLoading ? 'animate-spin' : ''}`}></i>
+                        Refresh
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleDisconnectGitHub}
+                        className="px-3 py-1.5 rounded-xl bg-red-500/15 hover:bg-red-500/25 border border-red-500/30 text-red-300 text-[10px] font-black uppercase tracking-wider cursor-pointer"
+                      >
+                        Disconnect
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-xs font-bold text-slate-200">
+                      Connect your GitHub Personal Access Token (PAT)
+                    </p>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      Stored securely server-side so Vixora can create repos, deploy websites to GitHub Pages, modify your Vixora repos, and commit self-healed fixes.
+                    </p>
+                  </div>
+                )}
+
+                <form
+                  onSubmit={async e => {
+                    e.preventDefault();
+                    await handleConnectGitHubToken(githubTokenInput);
+                  }}
+                  className="flex flex-col sm:flex-row gap-2"
+                >
+                  <input
+                    type="password"
+                    value={githubTokenInput}
+                    onChange={e => setGithubTokenInput(e.target.value)}
+                    placeholder={
+                      githubStatus.connected
+                        ? 'Replace GitHub Personal Access Token (ghp_... or github_pat_...)'
+                        : 'Paste GitHub Personal Access Token (ghp_... or github_pat_...)'
+                    }
+                    className="flex-1 px-3 py-2 rounded-xl bg-slate-900 border border-white/15 text-xs text-white placeholder-slate-500 outline-none focus:border-cyan-400 font-mono"
+                  />
+                  <button
+                    type="submit"
+                    disabled={isGitHubLoading || !githubTokenInput.trim()}
+                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white text-xs font-black uppercase tracking-wider shrink-0 cursor-pointer disabled:opacity-50"
+                  >
+                    {isGitHubLoading ? 'Connecting...' : githubStatus.connected ? 'Update Token' : 'Connect GitHub'}
+                  </button>
+                </form>
+
+                {githubConnectError && (
+                  <p className="text-[11px] text-red-400 font-medium">{githubConnectError}</p>
+                )}
+              </div>
+
+              {/* Autonomous Engineering Quick Actions */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsGitHubModalOpen(false);
+                    handleSendMessage(
+                      'Run a full TypeScript diagnostic check on Vixora Studio and fix any errors or issues you find.'
+                    );
+                  }}
+                  className="p-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-left flex items-center gap-3 transition-all cursor-pointer"
+                >
+                  <div className="w-9 h-9 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center text-sm shrink-0">
+                    <i className="fa-solid fa-screwdriver-wrench"></i>
+                  </div>
+                  <div>
+                    <p className="text-xs font-black uppercase text-white">Self-Diagnose &amp; Fix Vixora</p>
+                    <p className="text-[10px] text-slate-300">Run tsc check &amp; auto-patch issues safely</p>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsGitHubModalOpen(false);
+                    setInputQuery(
+                      'Build a modern, responsive web app / website for [describe your idea] and push it to a new GitHub repo with live Pages'
+                    );
+                  }}
+                  className="p-3 rounded-2xl border border-cyan-500/30 bg-cyan-500/10 hover:bg-cyan-500/20 text-left flex items-center gap-3 transition-all cursor-pointer"
+                >
+                  <div className="w-9 h-9 rounded-xl bg-cyan-500 text-slate-950 flex items-center justify-center text-sm shrink-0">
+                    <i className="fa-solid fa-laptop-code"></i>
+                  </div>
+                  <div>
+                    <p className="text-xs font-black uppercase text-white">Build Website / App on GitHub</p>
+                    <p className="text-[10px] text-slate-300">Generate code, push repo &amp; preview live</p>
+                  </div>
+                </button>
+              </div>
+
+              {/* Repository Browser */}
+              {githubStatus.connected && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-black uppercase tracking-wider text-slate-300">
+                      Your GitHub Repositories ({githubReposList.length})
+                    </h4>
+                    <span className="text-[10px] text-slate-400">Select a repo to inspect, modify, or sync</span>
+                  </div>
+
+                  {isGitHubLoading && githubReposList.length === 0 ? (
+                    <div className="p-6 text-center text-slate-400 text-xs">
+                      <i className="fa-solid fa-circle-notch animate-spin text-cyan-400 mr-2"></i>
+                      Loading repositories...
+                    </div>
+                  ) : githubReposList.length === 0 ? (
+                    <div className="p-5 rounded-2xl border border-white/10 bg-white/[0.02] text-center text-xs text-slate-400">
+                      No repositories found yet. Ask Vixora in chat to create a new website or app repository!
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                      {githubReposList.map((repo: any) => (
+                        <div
+                          key={repo.full_name}
+                          className="p-3 rounded-2xl border border-white/10 bg-white/[0.03] flex flex-wrap items-center justify-between gap-2"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <a
+                                href={repo.html_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs font-bold text-cyan-300 hover:underline truncate"
+                              >
+                                {repo.full_name}
+                              </a>
+                              <span className="px-1.5 py-0.2 rounded text-[8px] font-bold uppercase bg-white/10 text-slate-300">
+                                {repo.private ? 'Private' : 'Public'}
+                              </span>
+                              {repo.is_vixora_repo && (
+                                <span className="px-1.5 py-0.2 rounded text-[8px] font-black uppercase bg-orange-500/20 text-orange-300 border border-orange-500/40">
+                                  Vixora Repo
+                                </span>
+                              )}
+                            </div>
+                            {repo.description && (
+                              <p className="text-[10px] text-slate-400 truncate mt-0.5">{repo.description}</p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsGitHubModalOpen(false);
+                                handleSendMessage(`Inspect the file tree of GitHub repo ${repo.full_name}`);
+                              }}
+                              className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-[10px] font-bold text-white cursor-pointer"
+                            >
+                              Inspect
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsGitHubModalOpen(false);
+                                setInputQuery(`Modify GitHub repo ${repo.full_name} to `);
+                              }}
+                              className="px-2.5 py-1 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-[10px] font-bold text-cyan-300 cursor-pointer"
+                            >
+                              Modify
+                            </button>
+                            {repo.is_vixora_repo && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setIsGitHubModalOpen(false);
+                                  handleSendMessage(
+                                    `Sync the latest Vixora Studio codebase to GitHub repo ${repo.full_name}`
+                                  );
+                                }}
+                                className="px-2.5 py-1 rounded-lg bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/40 text-[10px] font-bold text-orange-300 cursor-pointer"
+                              >
+                                Sync Vixora
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

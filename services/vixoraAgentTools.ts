@@ -1,5 +1,48 @@
 import { Type } from "@google/genai";
 
+export interface CodingProgressData {
+  step: number;
+  totalSteps: number;
+  stepName: string;
+  detail: string;
+  percent: number;
+  isComplete: boolean;
+  mode?: 'build' | 'modify' | 'self-heal' | 'repo';
+}
+
+export interface CodingResultData {
+  kind: 'build' | 'modify' | 'self-heal' | 'repos' | 'sync';
+  title: string;
+  summary: string;
+  fullName?: string;
+  repoUrl?: string;
+  branch?: string;
+  commitSha?: string;
+  commitUrl?: string;
+  pagesUrl?: string;
+  files?: Array<{ path: string; content: string; reason?: string }>;
+  previewHtml?: string;
+  repos?: Array<{
+    name: string;
+    full_name: string;
+    private: boolean;
+    description: string;
+    html_url: string;
+    language: string;
+    default_branch: string;
+    is_vixora_repo?: boolean;
+  }>;
+  diagnostics?: {
+    ok: boolean;
+    errors: string[];
+    rawOutput: string;
+    checkedAt: string;
+  };
+  applied?: boolean;
+  rolledBack?: boolean;
+  diagnosis?: string;
+}
+
 export interface VixoraAppContext {
   setActiveTab: (tab: string) => void;
   handleAutopilotVideoGeneration: (topic: string, ratio?: 'vertical' | 'horizontal' | 'square', duration?: string, webSearch?: boolean) => void;
@@ -50,6 +93,7 @@ export interface VixoraAppContext {
     createdAt: string;
   }>;
   loadVideoIntoSequencer?: (videoData: any) => void;
+  onCodingProgress?: (progress: CodingProgressData) => void;
   userFullName?: string;
   currentScriptText?: string;
   currentTopic?: string;
@@ -509,6 +553,513 @@ export const VIXORA_AGENT_TOOLS: VixoraToolDefinition[] = [
         executedActionName: 'directVideoMotionGraphics',
         message: 'AI Director is ready once video clips are sourced.'
       };
+    }
+  },
+  {
+    name: 'manageGitHubRepositories',
+    description: 'Connects to the user\'s GitHub account to check connection status, list all repositories (including Vixora repos), inspect a repository\'s file tree, read a file, or create a new repository.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        action: {
+          type: Type.STRING,
+          enum: ['status', 'list', 'tree', 'read_file', 'create'],
+          description: 'Action to perform: "status", "list" (all repos), "tree" (inspect files in owner/repo), "read_file", or "create" (new repo).'
+        },
+        fullName: { type: Type.STRING, description: 'Repository full name like "owner/repo" (required for tree and read_file).' },
+        filePath: { type: Type.STRING, description: 'File path inside repo for read_file e.g. "src/App.tsx".' },
+        repoName: { type: Type.STRING, description: 'New repository name for "create" action.' },
+        description: { type: Type.STRING, description: 'Repository description for "create".' },
+        isPrivate: { type: Type.BOOLEAN, description: 'Whether the newly created repo should be private.' }
+      },
+      required: ['action']
+    },
+    execute: async (args, ctx) => {
+      const action = args.action || 'list';
+      ctx.onCodingProgress?.({
+        step: 1,
+        totalSteps: 3,
+        stepName: 'Connecting to GitHub API',
+        detail: `Executing GitHub repository action "${action}"...`,
+        percent: 35,
+        isComplete: false,
+        mode: 'repo'
+      });
+
+      if (action === 'status') {
+        const res = await fetch('/api/github/status');
+        const data = await res.json();
+        if (!data.connected) {
+          return {
+            success: false,
+            executedActionName: 'manageGitHubRepositories',
+            message: 'GitHub is not connected yet. Click the GitHub badge in the chat header to connect your Personal Access Token.'
+          };
+        }
+        return {
+          success: true,
+          executedActionName: 'manageGitHubRepositories',
+          message: `Connected to GitHub as @${data.user.login} (${data.user.public_repos} public, ${data.user.total_private_repos} private repos).`
+        };
+      }
+
+      if (action === 'list') {
+        const res = await fetch('/api/github/repos');
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+          return {
+            success: false,
+            executedActionName: 'manageGitHubRepositories',
+            message: data.error || 'Could not list GitHub repositories. Make sure GitHub is connected.'
+          };
+        }
+        ctx.onCodingProgress?.({
+          step: 3,
+          totalSteps: 3,
+          stepName: 'Repositories Loaded',
+          detail: `Retrieved ${data.count} GitHub repositories.`,
+          percent: 100,
+          isComplete: true,
+          mode: 'repo'
+        });
+        const codingResult: CodingResultData = {
+          kind: 'repos',
+          title: `GitHub Repositories (${data.count})`,
+          summary: `Found ${data.count} repositories in your GitHub account.`,
+          repos: data.repos
+        };
+        return {
+          success: true,
+          executedActionName: 'manageGitHubRepositories',
+          message: `Listed ${data.count} GitHub repositories: ${(data.repos || []).slice(0, 6).map((r: any) => r.full_name).join(', ')}`,
+          data: { codingResult }
+        };
+      }
+
+      if (action === 'create') {
+        const res = await fetch('/api/github/repos/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: args.repoName || `vixora-project-${Date.now().toString().slice(-4)}`,
+            description: args.description,
+            isPrivate: args.isPrivate
+          })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+          return { success: false, executedActionName: 'manageGitHubRepositories', message: data.error || 'Failed to create repository.' };
+        }
+        const codingResult: CodingResultData = {
+          kind: 'repos',
+          title: `Created ${data.repo.full_name}`,
+          summary: `Repository ${data.repo.full_name} is ready on GitHub.`,
+          fullName: data.repo.full_name,
+          repoUrl: data.repo.html_url,
+          branch: data.repo.default_branch,
+          repos: [{ ...data.repo, language: 'New' }]
+        };
+        return {
+          success: true,
+          executedActionName: 'manageGitHubRepositories',
+          message: `Created GitHub repository ${data.repo.full_name} (${data.repo.html_url}).`,
+          data: { codingResult }
+        };
+      }
+
+      if (action === 'tree' && args.fullName) {
+        const res = await fetch(`/api/github/repos/tree?full_name=${encodeURIComponent(args.fullName)}`);
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+          return { success: false, executedActionName: 'manageGitHubRepositories', message: data.error || 'Failed to read repository tree.' };
+        }
+        const fileList = (data.files || []).slice(0, 50).map((f: any) => f.path).join('\n');
+        return {
+          success: true,
+          executedActionName: 'manageGitHubRepositories',
+          message: `Files in ${args.fullName} (${data.default_branch}):\n${fileList}`
+        };
+      }
+
+      if (action === 'read_file' && args.fullName && args.filePath) {
+        const res = await fetch(`/api/github/repos/file?full_name=${encodeURIComponent(args.fullName)}&path=${encodeURIComponent(args.filePath)}`);
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+          return { success: false, executedActionName: 'manageGitHubRepositories', message: data.error || 'Failed to read file.' };
+        }
+        const codingResult: CodingResultData = {
+          kind: 'modify',
+          title: `${args.fullName} — ${args.filePath}`,
+          summary: `Inspected ${args.filePath} (${data.size} bytes).`,
+          fullName: args.fullName,
+          repoUrl: `https://github.com/${args.fullName}`,
+          files: [{ path: data.path, content: data.content }]
+        };
+        return {
+          success: true,
+          executedActionName: 'manageGitHubRepositories',
+          message: `Read ${args.filePath} from ${args.fullName}.`,
+          data: { codingResult }
+        };
+      }
+
+      return { success: false, executedActionName: 'manageGitHubRepositories', message: 'Missing required parameters for GitHub repository action.' };
+    }
+  },
+  {
+    name: 'buildWebsiteOrAppOnGitHub',
+    description: 'Autonomously designs, codes, builds, and commits a complete responsive website or web application into a new or existing GitHub repository, with live interactive preview in chat.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        prompt: { type: Type.STRING, description: 'Detailed description of the website or web app to create.' },
+        repoName: { type: Type.STRING, description: 'Desired new GitHub repository name (slug e.g. "acme-agency-site").' },
+        existingRepoFullName: { type: Type.STRING, description: 'Optional existing "owner/repo" to push the built app into.' },
+        appType: {
+          type: Type.STRING,
+          enum: ['website', 'webapp', 'landing', 'dashboard', 'portfolio', 'ecommerce'],
+          description: 'Category of app or website to architect.'
+        },
+        isPrivate: { type: Type.BOOLEAN, description: 'Create as private repository if true (default false).' },
+        deployPages: { type: Type.BOOLEAN, description: 'Enable GitHub Pages automatically if public (default true).' }
+      },
+      required: ['prompt']
+    },
+    execute: async (args, ctx) => {
+      ctx.onCodingProgress?.({
+        step: 1,
+        totalSteps: 5,
+        stepName: 'Analyzing Requirements & Repo Setup',
+        detail: `Preparing GitHub repository and architecture plan for "${args.repoName || 'your app'}"...`,
+        percent: 20,
+        isComplete: false,
+        mode: 'build'
+      });
+
+      const timer = setTimeout(() => {
+        ctx.onCodingProgress?.({
+          step: 3,
+          totalSteps: 5,
+          stepName: 'Writing Production Code & UI Components',
+          detail: 'Synthesizing responsive HTML, modern CSS, interactive JS logic, and documentation...',
+          percent: 62,
+          isComplete: false,
+          mode: 'build'
+        });
+      }, 2200);
+
+      try {
+        const res = await fetch('/api/github/build-app', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt: args.prompt,
+            repoName: args.repoName,
+            existingRepoFullName: args.existingRepoFullName,
+            appType: args.appType || 'webapp',
+            isPrivate: args.isPrivate ?? false,
+            deployPages: args.deployPages ?? true
+          })
+        });
+        clearTimeout(timer);
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+          return {
+            success: false,
+            executedActionName: 'buildWebsiteOrAppOnGitHub',
+            message: data.error || 'Failed to build website/app on GitHub.'
+          };
+        }
+
+        ctx.onCodingProgress?.({
+          step: 5,
+          totalSteps: 5,
+          stepName: 'Committed to GitHub & Preview Ready',
+          detail: `Pushed ${data.result.files?.length || 0} files to ${data.result.fullName} (${data.result.branch}).`,
+          percent: 100,
+          isComplete: true,
+          mode: 'build'
+        });
+
+        const r = data.result;
+        const codingResult: CodingResultData = {
+          kind: 'build',
+          title: r.appTitle || r.fullName,
+          summary: r.summary,
+          fullName: r.fullName,
+          repoUrl: r.repoUrl,
+          branch: r.branch,
+          commitSha: r.commitSha,
+          commitUrl: r.commitUrl,
+          pagesUrl: r.pagesUrl,
+          files: r.files,
+          previewHtml: r.previewHtml
+        };
+
+        return {
+          success: true,
+          executedActionName: 'buildWebsiteOrAppOnGitHub',
+          message: `Built "${r.appTitle}" and committed ${r.files?.length || 0} files to GitHub repo ${r.fullName} (${r.repoUrl}).`,
+          data: { codingResult }
+        };
+      } catch (err: any) {
+        clearTimeout(timer);
+        return {
+          success: false,
+          executedActionName: 'buildWebsiteOrAppOnGitHub',
+          message: err?.message || 'Unexpected error while building app on GitHub.'
+        };
+      }
+    }
+  },
+  {
+    name: 'modifyGitHubRepository',
+    description: 'Reads an existing GitHub repository (including Vixora repos or any user project), applies AI code modifications/bug fixes/new features, and commits the updated files directly to GitHub.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        fullName: { type: Type.STRING, description: 'Target GitHub repository in "owner/repo" format.' },
+        instruction: { type: Type.STRING, description: 'Exact changes, features, or fixes to implement in the repository.' },
+        branch: { type: Type.STRING, description: 'Optional branch name (defaults to repo default branch).' },
+        targetFilePaths: { type: Type.STRING, description: 'Optional comma-separated relative file paths to focus on.' }
+      },
+      required: ['fullName', 'instruction']
+    },
+    execute: async (args, ctx) => {
+      ctx.onCodingProgress?.({
+        step: 1,
+        totalSteps: 4,
+        stepName: 'Fetching Repository Codebase',
+        detail: `Reading file tree and source files from ${args.fullName}...`,
+        percent: 28,
+        isComplete: false,
+        mode: 'modify'
+      });
+
+      const timer = setTimeout(() => {
+        ctx.onCodingProgress?.({
+          step: 3,
+          totalSteps: 4,
+          stepName: 'Generating Code Modifications & Commit',
+          detail: `Applying requested updates to ${args.fullName}...`,
+          percent: 72,
+          isComplete: false,
+          mode: 'modify'
+        });
+      }, 2000);
+
+      try {
+        const targetFilePaths = typeof args.targetFilePaths === 'string' && args.targetFilePaths.trim()
+          ? args.targetFilePaths.split(',').map((s: string) => s.trim()).filter(Boolean)
+          : undefined;
+
+        const res = await fetch('/api/github/modify-repo', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fullName: args.fullName,
+            instruction: args.instruction,
+            branch: args.branch,
+            targetFilePaths
+          })
+        });
+        clearTimeout(timer);
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+          return {
+            success: false,
+            executedActionName: 'modifyGitHubRepository',
+            message: data.error || `Failed to modify ${args.fullName}.`
+          };
+        }
+
+        ctx.onCodingProgress?.({
+          step: 4,
+          totalSteps: 4,
+          stepName: 'Committed Updates to GitHub',
+          detail: `Updated ${data.result.files?.length || 0} files on ${data.result.fullName}.`,
+          percent: 100,
+          isComplete: true,
+          mode: 'modify'
+        });
+
+        const r = data.result;
+        const codingResult: CodingResultData = {
+          kind: 'modify',
+          title: `Updated ${r.fullName}`,
+          summary: r.summary,
+          fullName: r.fullName,
+          repoUrl: r.repoUrl,
+          branch: r.branch,
+          commitSha: r.commitSha,
+          commitUrl: r.commitUrl,
+          files: r.files,
+          previewHtml: r.previewHtml
+        };
+
+        return {
+          success: true,
+          executedActionName: 'modifyGitHubRepository',
+          message: `Successfully modified ${r.fullName} (${r.files?.length || 0} files updated, commit ${String(r.commitSha || '').slice(0, 7)}).`,
+          data: { codingResult }
+        };
+      } catch (err: any) {
+        clearTimeout(timer);
+        return {
+          success: false,
+          executedActionName: 'modifyGitHubRepository',
+          message: err?.message || 'Unexpected error modifying GitHub repository.'
+        };
+      }
+    }
+  },
+  {
+    name: 'selfDiagnoseAndUpdateVixora',
+    description: 'Runs self-diagnostics (TypeScript compiler check & workspace scan) on Vixora itself, automatically repairs bugs or applies requested self-updates to Vixora source files with automatic rollback protection, and optionally pushes the verified Vixora codebase to GitHub.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        issueDescription: { type: Type.STRING, description: 'Description of the bug/problem to fix or self-update improvement to apply to Vixora.' },
+        targetFiles: { type: Type.STRING, description: 'Optional comma-separated file paths inside Vixora workspace to inspect.' },
+        autoApply: { type: Type.BOOLEAN, description: 'Whether to apply and verify the fix automatically (default true).' },
+        pushToGitHubRepo: { type: Type.STRING, description: 'Optional "owner/repo" (e.g. a Vixora GitHub repo) to push verified updates to.' },
+        syncFullWorkspace: { type: Type.BOOLEAN, description: 'If true, pushes the complete Vixora codebase cleanly to pushToGitHubRepo or a new vixora-studio repo.' }
+      }
+    },
+    execute: async (args, ctx) => {
+      if (args.syncFullWorkspace) {
+        ctx.onCodingProgress?.({
+          step: 2,
+          totalSteps: 4,
+          stepName: 'Packaging Vixora Workspace Source',
+          detail: 'Collecting clean Vixora files (excluding secrets & build artifacts) and syncing to GitHub...',
+          percent: 55,
+          isComplete: false,
+          mode: 'self-heal'
+        });
+        const syncRes = await fetch('/api/github/sync-vixora', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fullName: args.pushToGitHubRepo,
+            commitMessage: args.issueDescription || 'chore: sync Vixora AI Studio codebase'
+          })
+        });
+        const syncData = await syncRes.json();
+        if (!syncRes.ok || !syncData.ok) {
+          return {
+            success: false,
+            executedActionName: 'selfDiagnoseAndUpdateVixora',
+            message: syncData.error || 'Failed to sync Vixora codebase to GitHub.'
+          };
+        }
+        const r = syncData.result;
+        const codingResult: CodingResultData = {
+          kind: 'sync',
+          title: `Synced Vixora → ${r.fullName}`,
+          summary: r.summary,
+          fullName: r.fullName,
+          repoUrl: r.repoUrl,
+          branch: r.branch,
+          commitSha: r.commitSha,
+          commitUrl: r.commitUrl,
+          files: r.files
+        };
+        return {
+          success: true,
+          executedActionName: 'selfDiagnoseAndUpdateVixora',
+          message: `Synced Vixora codebase to GitHub repository ${r.fullName} (${r.repoUrl}).`,
+          data: { codingResult }
+        };
+      }
+
+      ctx.onCodingProgress?.({
+        step: 1,
+        totalSteps: 4,
+        stepName: 'Running Vixora Self-Diagnostics',
+        detail: 'Scanning workspace files and running TypeScript compiler verification...',
+        percent: 25,
+        isComplete: false,
+        mode: 'self-heal'
+      });
+
+      const timer = setTimeout(() => {
+        ctx.onCodingProgress?.({
+          step: 3,
+          totalSteps: 4,
+          stepName: 'Synthesizing & Verifying Self-Update',
+          detail: 'Generating safe patches, verifying compilation, and checking rollback guardrails...',
+          percent: 70,
+          isComplete: false,
+          mode: 'self-heal'
+        });
+      }, 2200);
+
+      try {
+        const targetFiles = typeof args.targetFiles === 'string' && args.targetFiles.trim()
+          ? args.targetFiles.split(',').map((s: string) => s.trim()).filter(Boolean)
+          : undefined;
+
+        const res = await fetch('/api/coder/self-heal', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            issueDescription: args.issueDescription,
+            targetFiles,
+            autoApply: args.autoApply !== undefined ? args.autoApply : true,
+            pushToGitHubRepo: args.pushToGitHubRepo
+          })
+        });
+        clearTimeout(timer);
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+          return {
+            success: false,
+            executedActionName: 'selfDiagnoseAndUpdateVixora',
+            message: data.error || 'Self-diagnosis failed.'
+          };
+        }
+
+        const r = data.result;
+        ctx.onCodingProgress?.({
+          step: 4,
+          totalSteps: 4,
+          stepName: r.applied ? 'Self-Update Verified & Applied' : 'Self-Diagnostic Complete',
+          detail: r.summary,
+          percent: 100,
+          isComplete: true,
+          mode: 'self-heal'
+        });
+
+        const codingResult: CodingResultData = {
+          kind: 'self-heal',
+          title: r.applied ? 'Vixora Self-Update Applied' : r.rolledBack ? 'Patch Rolled Back Safely' : 'Vixora Diagnostics Report',
+          summary: r.summary,
+          diagnosis: r.diagnosis,
+          diagnostics: r.diagnosticsAfter || r.diagnosticsBefore,
+          applied: r.applied,
+          rolledBack: r.rolledBack,
+          files: r.files,
+          fullName: r.repoSync?.full_name,
+          repoUrl: r.repoSync?.repoUrl,
+          commitSha: r.repoSync?.commitSha,
+          commitUrl: r.repoSync?.commitUrl
+        };
+
+        return {
+          success: true,
+          executedActionName: 'selfDiagnoseAndUpdateVixora',
+          message: r.summary,
+          data: { codingResult }
+        };
+      } catch (err: any) {
+        clearTimeout(timer);
+        return {
+          success: false,
+          executedActionName: 'selfDiagnoseAndUpdateVixora',
+          message: err?.message || 'Unexpected error during Vixora self-diagnosis.'
+        };
+      }
     }
   }
 ];

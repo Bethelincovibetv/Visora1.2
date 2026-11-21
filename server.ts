@@ -21,6 +21,23 @@ import {
 } from './services/serverVideoEngine';
 import { PRESET_SFX_CATALOG } from './sfxLibrary';
 import { SERVER_MUSIC_TRACKS, SERVER_VOICE_OPTIONS } from './services/serverCatalog';
+import {
+  getGitHubAuthStatus,
+  setGitHubToken,
+  clearGitHubToken,
+  listGitHubRepos,
+  createGitHubRepo,
+  getGitHubRepoTree,
+  getGitHubFileContent,
+  commitFilesToGitHubRepo,
+  buildWebsiteOrAppOnGitHub,
+  modifyGitHubRepo,
+  pushWorkspaceToGitHub,
+  listWorkspaceFiles,
+  readWorkspaceFile,
+  runWorkspaceDiagnostics,
+  selfDiagnoseAndUpdateVixora
+} from './services/githubCodingService';
 
 async function startServer() {
   const app = express();
@@ -1008,6 +1025,191 @@ Return JSON in this EXACT schema:
 })();
 `;
     res.send(embedJsCode);
+  });
+
+  // ==========================================================================
+  // 9. GITHUB CODING AGENT & SELF-HEALING WORKSPACE ENDPOINTS
+  // ==========================================================================
+
+  app.get('/api/github/status', async (req, res) => {
+    try {
+      const status = await getGitHubAuthStatus();
+      res.json({ ok: true, ...status });
+    } catch (err: any) {
+      res.status(500).json({ ok: false, connected: false, error: err?.message || 'GitHub status check failed' });
+    }
+  });
+
+  app.post('/api/github/config', async (req, res) => {
+    try {
+      const { token } = req.body || {};
+      if (!token || typeof token !== 'string' || !token.trim()) {
+        return res.status(400).json({ ok: false, error: 'A valid GitHub Personal Access Token is required.' });
+      }
+      const verification = await getGitHubAuthStatus(token.trim());
+      if (!verification.connected) {
+        return res.status(401).json({ ok: false, error: verification.error || 'GitHub token authentication failed.' });
+      }
+      setGitHubToken(token.trim());
+      res.json({ ok: true, ...verification });
+    } catch (err: any) {
+      res.status(500).json({ ok: false, error: err?.message || 'Failed to configure GitHub token' });
+    }
+  });
+
+  app.delete('/api/github/config', (req, res) => {
+    clearGitHubToken();
+    res.json({ ok: true, connected: false, user: null });
+  });
+
+  app.get('/api/github/repos', async (req, res) => {
+    try {
+      const repos = await listGitHubRepos(Number(req.query.per_page) || 40);
+      res.json({ ok: true, count: repos.length, repos });
+    } catch (err: any) {
+      res.status(400).json({ ok: false, error: err?.message || 'Failed to list GitHub repositories' });
+    }
+  });
+
+  app.post('/api/github/repos/create', async (req, res) => {
+    try {
+      const { name, description, isPrivate, autoInit } = req.body || {};
+      if (!name) return res.status(400).json({ ok: false, error: 'Repository "name" is required.' });
+      const repo = await createGitHubRepo({ name, description, isPrivate, autoInit });
+      res.status(201).json({ ok: true, repo });
+    } catch (err: any) {
+      res.status(400).json({ ok: false, error: err?.message || 'Failed to create repository' });
+    }
+  });
+
+  app.get('/api/github/repos/tree', async (req, res) => {
+    try {
+      const fullName = String(req.query.full_name || '');
+      const branch = req.query.branch ? String(req.query.branch) : undefined;
+      if (!fullName) return res.status(400).json({ ok: false, error: 'Query parameter "full_name" (owner/repo) is required.' });
+      const tree = await getGitHubRepoTree(fullName, branch);
+      res.json({ ok: true, ...tree });
+    } catch (err: any) {
+      res.status(400).json({ ok: false, error: err?.message || 'Failed to load repository tree' });
+    }
+  });
+
+  app.get('/api/github/repos/file', async (req, res) => {
+    try {
+      const fullName = String(req.query.full_name || '');
+      const filePath = String(req.query.path || '');
+      const ref = req.query.ref ? String(req.query.ref) : undefined;
+      if (!fullName || !filePath) {
+        return res.status(400).json({ ok: false, error: 'Query parameters "full_name" and "path" are required.' });
+      }
+      const file = await getGitHubFileContent(fullName, filePath, ref);
+      res.json({ ok: true, ...file });
+    } catch (err: any) {
+      res.status(400).json({ ok: false, error: err?.message || 'Failed to read repository file' });
+    }
+  });
+
+  app.post('/api/github/repos/commit', async (req, res) => {
+    try {
+      const { fullName, branch, message, files } = req.body || {};
+      if (!fullName || !Array.isArray(files) || files.length === 0) {
+        return res.status(400).json({ ok: false, error: '"fullName" and non-empty "files" array are required.' });
+      }
+      const result = await commitFilesToGitHubRepo({
+        fullName,
+        branch,
+        message: message || 'chore: update via Vixora Coding Agent',
+        files
+      });
+      res.json({ ok: true, ...result });
+    } catch (err: any) {
+      res.status(400).json({ ok: false, error: err?.message || 'Failed to commit files to GitHub' });
+    }
+  });
+
+  app.post('/api/github/build-app', async (req, res) => {
+    try {
+      const { prompt, repoName, existingRepoFullName, appType, isPrivate, deployPages } = req.body || {};
+      if (!prompt) return res.status(400).json({ ok: false, error: '"prompt" is required to build an app or website.' });
+      const result = await buildWebsiteOrAppOnGitHub({
+        prompt,
+        repoName,
+        existingRepoFullName,
+        appType,
+        isPrivate,
+        deployPages
+      });
+      res.json({ ok: true, result });
+    } catch (err: any) {
+      res.status(500).json({ ok: false, error: err?.message || 'Failed to build app on GitHub' });
+    }
+  });
+
+  app.post('/api/github/modify-repo', async (req, res) => {
+    try {
+      const { fullName, instruction, branch, targetFilePaths } = req.body || {};
+      if (!fullName || !instruction) {
+        return res.status(400).json({ ok: false, error: '"fullName" and "instruction" are required.' });
+      }
+      const result = await modifyGitHubRepo({ fullName, instruction, branch, targetFilePaths });
+      res.json({ ok: true, result });
+    } catch (err: any) {
+      res.status(500).json({ ok: false, error: err?.message || 'Failed to modify GitHub repository' });
+    }
+  });
+
+  app.post('/api/github/sync-vixora', async (req, res) => {
+    try {
+      const { fullName, newRepoName, commitMessage, isPrivate } = req.body || {};
+      const result = await pushWorkspaceToGitHub({ fullName, newRepoName, commitMessage, isPrivate });
+      res.json({ ok: true, result });
+    } catch (err: any) {
+      res.status(500).json({ ok: false, error: err?.message || 'Failed to sync Vixora workspace to GitHub' });
+    }
+  });
+
+  app.get('/api/coder/files', (req, res) => {
+    try {
+      const files = listWorkspaceFiles();
+      res.json({ ok: true, count: files.length, files });
+    } catch (err: any) {
+      res.status(500).json({ ok: false, error: err?.message || 'Failed to list workspace files' });
+    }
+  });
+
+  app.get('/api/coder/read', (req, res) => {
+    try {
+      const relPath = String(req.query.path || '');
+      if (!relPath) return res.status(400).json({ ok: false, error: 'Query parameter "path" is required.' });
+      const file = readWorkspaceFile(relPath);
+      res.json({ ok: true, ...file });
+    } catch (err: any) {
+      res.status(400).json({ ok: false, error: err?.message || 'Failed to read workspace file' });
+    }
+  });
+
+  app.post('/api/coder/diagnose', async (req, res) => {
+    try {
+      const diagnostics = await runWorkspaceDiagnostics();
+      res.json({ ok: true, diagnostics });
+    } catch (err: any) {
+      res.status(500).json({ ok: false, error: err?.message || 'Diagnostics run failed' });
+    }
+  });
+
+  app.post('/api/coder/self-heal', async (req, res) => {
+    try {
+      const { issueDescription, targetFiles, autoApply, pushToGitHubRepo } = req.body || {};
+      const result = await selfDiagnoseAndUpdateVixora({
+        issueDescription,
+        targetFiles,
+        autoApply,
+        pushToGitHubRepo
+      });
+      res.json({ ok: true, result });
+    } catch (err: any) {
+      res.status(500).json({ ok: false, error: err?.message || 'Self-heal execution failed' });
+    }
   });
 
   // ==========================================================================
