@@ -307,6 +307,26 @@ export async function getGitHubFileContent(fullName: string, filePath: string, r
   };
 }
 
+export async function getGitHubFileRawBase64(fullName: string, filePath: string, ref?: string) {
+  const [owner, repo] = fullName.split('/');
+  if (!owner || !repo) throw new Error('Repository must be formatted as "owner/repo".');
+
+  const cleanPath = filePath.replace(/^\/+/, '');
+  const query = ref ? `?ref=${encodeURIComponent(ref)}` : '';
+  const data = await githubFetch(`/repos/${owner}/${repo}/contents/${cleanPath}${query}`);
+
+  if (Array.isArray(data)) {
+    return { isDirectory: true, path: cleanPath, base64: '', size: 0 };
+  }
+
+  return {
+    isDirectory: false,
+    path: data.path,
+    size: data.size || 0,
+    base64: String(data.content || '').replace(/\n/g, ''),
+  };
+}
+
 export interface CommitFileSpec {
   path: string;
   content: string;
@@ -460,7 +480,7 @@ export async function enableGitHubPages(fullName: string, branch = 'main') {
 // AI SOFTWARE ARCHITECT: BUILD WEBSITES / APPS & MODIFY GITHUB REPOS
 // ============================================================================
 
-async function runGeminiCodeGen(prompt: string): Promise<string> {
+export async function runGeminiCodeGen(prompt: string): Promise<string> {
   const ai = getGemini();
   const modelsToTry = ['gemini-3.8-flash', 'gemini-2.5-flash'];
   let lastErr: any = null;
@@ -482,7 +502,7 @@ async function runGeminiCodeGen(prompt: string): Promise<string> {
   throw lastErr || new Error('Gemini code generation failed.');
 }
 
-function parseJsonSafe<T = any>(raw: string): T {
+export function parseJsonSafe<T = any>(raw: string): T {
   const cleaned = raw
     .replace(/^```json\s*/i, '')
     .replace(/^```\s*/i, '')

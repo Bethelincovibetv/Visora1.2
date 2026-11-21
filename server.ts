@@ -38,6 +38,16 @@ import {
   runWorkspaceDiagnostics,
   selfDiagnoseAndUpdateVixora
 } from './services/githubCodingService';
+import {
+  getVercelAuthStatus,
+  listVercelProjects,
+  listVercelDeployments,
+  getVercelDeploymentStatus,
+  deployFilesToVercel,
+  deployWebsiteOrAppToVercel,
+  deployGitHubRepoToVercel,
+  deployVixoraWorkspaceToVercel
+} from './services/vercelDeployService';
 
 async function startServer() {
   const app = express();
@@ -1209,6 +1219,110 @@ Return JSON in this EXACT schema:
       res.json({ ok: true, result });
     } catch (err: any) {
       res.status(500).json({ ok: false, error: err?.message || 'Self-heal execution failed' });
+    }
+  });
+
+  // ==========================================================================
+  // 10. VERCEL DEPLOYMENT ENGINE ENDPOINTS (Token read strictly from secrets)
+  // ==========================================================================
+
+  app.get('/api/vercel/status', async (req, res) => {
+    try {
+      const status = await getVercelAuthStatus();
+      res.json({ ok: true, ...status });
+    } catch (err: any) {
+      res.status(500).json({ ok: false, configured: false, connected: false, error: err?.message || 'Vercel status check failed' });
+    }
+  });
+
+  app.get('/api/vercel/projects', async (req, res) => {
+    try {
+      const limit = Number(req.query.limit) || 25;
+      const teamId = req.query.teamId ? String(req.query.teamId) : undefined;
+      const projects = await listVercelProjects(limit, teamId);
+      res.json({ ok: true, count: projects.length, projects });
+    } catch (err: any) {
+      res.status(400).json({ ok: false, error: err?.message || 'Failed to list Vercel projects' });
+    }
+  });
+
+  app.get('/api/vercel/deployments', async (req, res) => {
+    try {
+      const projectId = req.query.projectId ? String(req.query.projectId) : undefined;
+      const limit = Number(req.query.limit) || 20;
+      const teamId = req.query.teamId ? String(req.query.teamId) : undefined;
+      const deployments = await listVercelDeployments(projectId, limit, teamId);
+      res.json({ ok: true, count: deployments.length, deployments });
+    } catch (err: any) {
+      res.status(400).json({ ok: false, error: err?.message || 'Failed to list Vercel deployments' });
+    }
+  });
+
+  app.get('/api/vercel/deployment/:id', async (req, res) => {
+    try {
+      const teamId = req.query.teamId ? String(req.query.teamId) : undefined;
+      const deployment = await getVercelDeploymentStatus(req.params.id, teamId);
+      res.json({ ok: true, deployment });
+    } catch (err: any) {
+      res.status(400).json({ ok: false, error: err?.message || 'Failed to fetch Vercel deployment status' });
+    }
+  });
+
+  app.post('/api/vercel/deploy-app', async (req, res) => {
+    try {
+      const { prompt, projectName, appType, target, alsoPushToGitHub, githubRepoName, isPrivate, teamId } = req.body || {};
+      if (!prompt) {
+        return res.status(400).json({ ok: false, error: '"prompt" is required to build and deploy a website/app to Vercel.' });
+      }
+      const result = await deployWebsiteOrAppToVercel({
+        prompt,
+        projectName,
+        appType,
+        target,
+        alsoPushToGitHub,
+        githubRepoName,
+        isPrivate,
+        teamId
+      });
+      res.json({ ok: true, result });
+    } catch (err: any) {
+      res.status(500).json({ ok: false, error: err?.message || 'Failed to deploy website/app to Vercel' });
+    }
+  });
+
+  app.post('/api/vercel/deploy-repo', async (req, res) => {
+    try {
+      const { fullName, projectName, branch, target, teamId } = req.body || {};
+      if (!fullName) {
+        return res.status(400).json({ ok: false, error: '"fullName" (owner/repo) is required.' });
+      }
+      const result = await deployGitHubRepoToVercel({ fullName, projectName, branch, target, teamId });
+      res.json({ ok: true, result });
+    } catch (err: any) {
+      res.status(500).json({ ok: false, error: err?.message || 'Failed to deploy GitHub repository to Vercel' });
+    }
+  });
+
+  app.post('/api/vercel/deploy-vixora', async (req, res) => {
+    try {
+      const { projectName, target, teamId } = req.body || {};
+      const result = await deployVixoraWorkspaceToVercel({ projectName, target, teamId });
+      res.json({ ok: true, result });
+    } catch (err: any) {
+      res.status(500).json({ ok: false, error: err?.message || 'Failed to deploy Vixora workspace to Vercel' });
+    }
+  });
+
+  app.post('/api/vercel/deploy-files', async (req, res) => {
+    try {
+      const { projectName, files, target, teamId } = req.body || {};
+      if (!projectName || !Array.isArray(files) || files.length === 0) {
+        return res.status(400).json({ ok: false, error: '"projectName" and non-empty "files" array are required.' });
+      }
+      const result = await deployFilesToVercel({ projectName, files, target, teamId });
+      res.json({ ok: true, result });
+    } catch (err: any) {
+      res.status(500).json({ ok: false, error: err?.message || 'Failed to deploy files to Vercel' });
     }
   });
 

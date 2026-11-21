@@ -7,11 +7,11 @@ export interface CodingProgressData {
   detail: string;
   percent: number;
   isComplete: boolean;
-  mode?: 'build' | 'modify' | 'self-heal' | 'repo';
+  mode?: 'build' | 'modify' | 'self-heal' | 'repo' | 'vercel';
 }
 
 export interface CodingResultData {
-  kind: 'build' | 'modify' | 'self-heal' | 'repos' | 'sync';
+  kind: 'build' | 'modify' | 'self-heal' | 'repos' | 'sync' | 'vercel';
   title: string;
   summary: string;
   fullName?: string;
@@ -20,6 +20,19 @@ export interface CodingResultData {
   commitSha?: string;
   commitUrl?: string;
   pagesUrl?: string;
+  liveUrl?: string;
+  deploymentUrl?: string;
+  inspectorUrl?: string;
+  deploymentId?: string;
+  readyState?: string;
+  vercelProjects?: Array<{
+    id: string;
+    name: string;
+    framework?: string | null;
+    latestUrl?: string;
+    readyState?: string;
+    updatedAt?: number;
+  }>;
   files?: Array<{ path: string; content: string; reason?: string }>;
   previewHtml?: string;
   repos?: Array<{
@@ -1058,6 +1071,369 @@ export const VIXORA_AGENT_TOOLS: VixoraToolDefinition[] = [
           success: false,
           executedActionName: 'selfDiagnoseAndUpdateVixora',
           message: err?.message || 'Unexpected error during Vixora self-diagnosis.'
+        };
+      }
+    }
+  },
+  {
+    name: 'deployToVercel',
+    description: 'Deploys websites and web applications live to Vercel using the server-side VERCEL_TOKEN secret. Can: (1) check Vercel connection status, (2) list Vercel projects, (3) build a brand-new website/app from a prompt and deploy it straight to Vercel (with optional GitHub repo push), (4) deploy an existing GitHub repository to Vercel, (5) deploy Vixora Studio workspace to Vercel, or (6) check deployment status.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        action: {
+          type: Type.STRING,
+          enum: ['status', 'list_projects', 'build_and_deploy', 'deploy_github_repo', 'deploy_vixora', 'check_deployment'],
+          description: 'Vercel action: "status", "list_projects", "build_and_deploy" (build app from prompt & deploy), "deploy_github_repo", "deploy_vixora", or "check_deployment".'
+        },
+        prompt: { type: Type.STRING, description: 'Website/app prompt when action is "build_and_deploy".' },
+        projectName: { type: Type.STRING, description: 'Vercel project slug name (lowercase letters, digits, hyphens).' },
+        appType: {
+          type: Type.STRING,
+          enum: ['website', 'webapp', 'landing', 'dashboard', 'portfolio', 'ecommerce'],
+          description: 'Category of website/app for "build_and_deploy".'
+        },
+        fullName: { type: Type.STRING, description: 'GitHub repository "owner/repo" when action is "deploy_github_repo".' },
+        branch: { type: Type.STRING, description: 'Optional GitHub branch when deploying a GitHub repo.' },
+        deploymentId: { type: Type.STRING, description: 'Vercel deployment ID (dpl_...) for "check_deployment".' },
+        alsoPushToGitHub: { type: Type.BOOLEAN, description: 'If true during build_and_deploy, also creates/commits a GitHub repository.' },
+        target: { type: Type.STRING, enum: ['production', 'preview'], description: 'Deployment target environment (default production).' }
+      },
+      required: ['action']
+    },
+    execute: async (args, ctx) => {
+      const action = args.action || 'build_and_deploy';
+
+      if (action === 'status') {
+        const res = await fetch('/api/vercel/status');
+        const data = await res.json();
+        if (!data.connected) {
+          return {
+            success: false,
+            executedActionName: 'deployToVercel',
+            message: data.error || 'Vercel secret token (VERCEL_TOKEN) is not configured in server secrets yet.'
+          };
+        }
+        return {
+          success: true,
+          executedActionName: 'deployToVercel',
+          message: `Vercel is connected as ${data.user?.name || data.user?.username} (@${data.user?.username}) via server secret.`
+        };
+      }
+
+      if (action === 'list_projects') {
+        ctx.onCodingProgress?.({
+          step: 1,
+          totalSteps: 2,
+          stepName: 'Fetching Vercel Projects',
+          detail: 'Reading deployed Vercel projects from your account...',
+          percent: 45,
+          isComplete: false,
+          mode: 'vercel'
+        });
+        const res = await fetch('/api/vercel/projects');
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+          return {
+            success: false,
+            executedActionName: 'deployToVercel',
+            message: data.error || 'Failed to fetch Vercel projects.'
+          };
+        }
+        ctx.onCodingProgress?.({
+          step: 2,
+          totalSteps: 2,
+          stepName: 'Vercel Projects Loaded',
+          detail: `Found ${data.count} Vercel projects.`,
+          percent: 100,
+          isComplete: true,
+          mode: 'vercel'
+        });
+        const codingResult: CodingResultData = {
+          kind: 'vercel',
+          title: `Vercel Projects (${data.count})`,
+          summary: `Retrieved ${data.count} projects from your Vercel account.`,
+          vercelProjects: data.projects
+        };
+        return {
+          success: true,
+          executedActionName: 'deployToVercel',
+          message: `Listed ${data.count} Vercel projects: ${(data.projects || []).slice(0, 6).map((p: any) => p.name).join(', ')}`,
+          data: { codingResult }
+        };
+      }
+
+      if (action === 'check_deployment' && args.deploymentId) {
+        const res = await fetch(`/api/vercel/deployment/${encodeURIComponent(args.deploymentId)}`);
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+          return {
+            success: false,
+            executedActionName: 'deployToVercel',
+            message: data.error || 'Failed to check Vercel deployment.'
+          };
+        }
+        const d = data.deployment;
+        const codingResult: CodingResultData = {
+          kind: 'vercel',
+          title: `Vercel: ${d.projectName}`,
+          summary: `Deployment ${d.deploymentId} state is ${d.readyState}.`,
+          liveUrl: d.liveUrl,
+          deploymentUrl: d.deploymentUrl,
+          inspectorUrl: d.inspectorUrl,
+          deploymentId: d.deploymentId,
+          readyState: d.readyState
+        };
+        return {
+          success: true,
+          executedActionName: 'deployToVercel',
+          message: `Vercel deployment ${d.projectName} is ${d.readyState}${d.liveUrl ? ` at ${d.liveUrl}` : ''}.`,
+          data: { codingResult }
+        };
+      }
+
+      if (action === 'deploy_github_repo') {
+        if (!args.fullName) {
+          return {
+            success: false,
+            executedActionName: 'deployToVercel',
+            message: 'Please provide the GitHub repository in "owner/repo" format to deploy to Vercel.'
+          };
+        }
+        ctx.onCodingProgress?.({
+          step: 1,
+          totalSteps: 4,
+          stepName: 'Pulling GitHub Repository Files',
+          detail: `Reading source tree from ${args.fullName} for Vercel deployment...`,
+          percent: 25,
+          isComplete: false,
+          mode: 'vercel'
+        });
+        const timer = setTimeout(() => {
+          ctx.onCodingProgress?.({
+            step: 3,
+            totalSteps: 4,
+            stepName: 'Uploading & Building on Vercel',
+            detail: `Deploying ${args.fullName} to Vercel production edge network...`,
+            percent: 72,
+            isComplete: false,
+            mode: 'vercel'
+          });
+        }, 2000);
+        try {
+          const res = await fetch('/api/vercel/deploy-repo', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              fullName: args.fullName,
+              projectName: args.projectName,
+              branch: args.branch,
+              target: args.target || 'production'
+            })
+          });
+          clearTimeout(timer);
+          const data = await res.json();
+          if (!res.ok || !data.ok) {
+            return {
+              success: false,
+              executedActionName: 'deployToVercel',
+              message: data.error || `Failed to deploy ${args.fullName} to Vercel.`
+            };
+          }
+          const r = data.result;
+          ctx.onCodingProgress?.({
+            step: 4,
+            totalSteps: 4,
+            stepName: `Vercel ${r.readyState}`,
+            detail: r.liveUrl ? `Live URL: ${r.liveUrl}` : `Deployment ID: ${r.deploymentId}`,
+            percent: 100,
+            isComplete: true,
+            mode: 'vercel'
+          });
+          const codingResult: CodingResultData = {
+            kind: 'vercel',
+            title: r.appTitle || `${args.fullName} on Vercel`,
+            summary: r.summary,
+            fullName: r.fullName,
+            repoUrl: r.repoUrl,
+            branch: r.branch,
+            liveUrl: r.liveUrl,
+            deploymentUrl: r.deploymentUrl,
+            inspectorUrl: r.inspectorUrl,
+            deploymentId: r.deploymentId,
+            readyState: r.readyState
+          };
+          return {
+            success: true,
+            executedActionName: 'deployToVercel',
+            message: `Deployed ${args.fullName} to Vercel (${r.readyState})${r.liveUrl ? ` — Live URL: ${r.liveUrl}` : ''}.`,
+            data: { codingResult }
+          };
+        } catch (err: any) {
+          clearTimeout(timer);
+          return {
+            success: false,
+            executedActionName: 'deployToVercel',
+            message: err?.message || 'Unexpected error deploying GitHub repo to Vercel.'
+          };
+        }
+      }
+
+      if (action === 'deploy_vixora') {
+        ctx.onCodingProgress?.({
+          step: 1,
+          totalSteps: 3,
+          stepName: 'Packaging Vixora Studio for Vercel',
+          detail: 'Collecting clean Vixora workspace source files (excluding secrets)...',
+          percent: 35,
+          isComplete: false,
+          mode: 'vercel'
+        });
+        try {
+          const res = await fetch('/api/vercel/deploy-vixora', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              projectName: args.projectName || 'vixora-studio',
+              target: args.target || 'production'
+            })
+          });
+          const data = await res.json();
+          if (!res.ok || !data.ok) {
+            return {
+              success: false,
+              executedActionName: 'deployToVercel',
+              message: data.error || 'Failed to deploy Vixora Studio to Vercel.'
+            };
+          }
+          const r = data.result;
+          ctx.onCodingProgress?.({
+            step: 3,
+            totalSteps: 3,
+            stepName: `Vercel ${r.readyState}`,
+            detail: r.liveUrl ? `Live URL: ${r.liveUrl}` : `Deployment ID: ${r.deploymentId}`,
+            percent: 100,
+            isComplete: true,
+            mode: 'vercel'
+          });
+          const codingResult: CodingResultData = {
+            kind: 'vercel',
+            title: r.appTitle || 'Vixora Studio on Vercel',
+            summary: r.summary,
+            liveUrl: r.liveUrl,
+            deploymentUrl: r.deploymentUrl,
+            inspectorUrl: r.inspectorUrl,
+            deploymentId: r.deploymentId,
+            readyState: r.readyState
+          };
+          return {
+            success: true,
+            executedActionName: 'deployToVercel',
+            message: `Deployed Vixora Studio to Vercel (${r.readyState})${r.liveUrl ? ` — Live URL: ${r.liveUrl}` : ''}.`,
+            data: { codingResult }
+          };
+        } catch (err: any) {
+          return {
+            success: false,
+            executedActionName: 'deployToVercel',
+            message: err?.message || 'Unexpected error deploying Vixora Studio to Vercel.'
+          };
+        }
+      }
+
+      // Default: build_and_deploy
+      if (!args.prompt) {
+        return {
+          success: false,
+          executedActionName: 'deployToVercel',
+          message: 'Please describe the website or web app you want me to build and deploy on Vercel.'
+        };
+      }
+
+      ctx.onCodingProgress?.({
+        step: 1,
+        totalSteps: 4,
+        stepName: 'Architecting Website & Vercel Bundle',
+        detail: `Designing responsive UI and production files for "${args.projectName || 'your site'}"...`,
+        percent: 25,
+        isComplete: false,
+        mode: 'vercel'
+      });
+
+      const timer = setTimeout(() => {
+        ctx.onCodingProgress?.({
+          step: 3,
+          totalSteps: 4,
+          stepName: 'Deploying to Vercel Edge Network',
+          detail: 'Uploading production bundle to Vercel and waiting for live URL...',
+          percent: 75,
+          isComplete: false,
+          mode: 'vercel'
+        });
+      }, 2400);
+
+      try {
+        const res = await fetch('/api/vercel/deploy-app', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt: args.prompt,
+            projectName: args.projectName,
+            appType: args.appType || 'website',
+            target: args.target || 'production',
+            alsoPushToGitHub: args.alsoPushToGitHub ?? false
+          })
+        });
+        clearTimeout(timer);
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+          return {
+            success: false,
+            executedActionName: 'deployToVercel',
+            message: data.error || 'Failed to build and deploy website to Vercel.'
+          };
+        }
+
+        const r = data.result;
+        ctx.onCodingProgress?.({
+          step: 4,
+          totalSteps: 4,
+          stepName: `Deployed (${r.readyState})`,
+          detail: r.liveUrl ? `Live on Vercel: ${r.liveUrl}` : `Deployment ID: ${r.deploymentId}`,
+          percent: 100,
+          isComplete: true,
+          mode: 'vercel'
+        });
+
+        const codingResult: CodingResultData = {
+          kind: 'vercel',
+          title: r.appTitle || r.projectName,
+          summary: r.summary,
+          fullName: r.github?.fullName,
+          repoUrl: r.github?.repoUrl,
+          commitSha: r.github?.commitSha,
+          commitUrl: r.github?.commitUrl,
+          liveUrl: r.liveUrl,
+          deploymentUrl: r.deploymentUrl,
+          inspectorUrl: r.inspectorUrl,
+          deploymentId: r.deploymentId,
+          readyState: r.readyState,
+          files: r.files,
+          previewHtml: r.previewHtml
+        };
+
+        return {
+          success: true,
+          executedActionName: 'deployToVercel',
+          message: `Built "${r.appTitle}" and deployed to Vercel (${r.readyState})${r.liveUrl ? ` — Live URL: ${r.liveUrl}` : ''}.`,
+          data: { codingResult }
+        };
+      } catch (err: any) {
+        clearTimeout(timer);
+        return {
+          success: false,
+          executedActionName: 'deployToVercel',
+          message: err?.message || 'Unexpected error during Vercel deployment.'
         };
       }
     }

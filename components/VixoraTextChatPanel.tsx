@@ -98,23 +98,23 @@ export const CLAUDE_STYLE_AGENTS: AgentPersona[] = [
     id: 'vixora_coach',
     name: 'Vixora AI Assistant',
     shortName: 'Vixora',
-    title: 'Executive Producer & Autonomous GitHub Software Engineer',
-    tagline: 'Ultimate All-in-One AI for Videos, Apps, Websites, GitHub Repos & Self-Healing',
+    title: 'Executive Producer, GitHub & Vercel Engineer',
+    tagline: 'Ultimate All-in-One AI for Videos, Apps, Websites, GitHub, Vercel & Self-Healing',
     icon: 'fa-bolt-lightning',
-    badge: 'VIDEO + CODING AI',
+    badge: 'VIDEO + CODE + VERCEL',
     color: 'text-amber-500',
     gradient: 'from-amber-500 via-orange-500 to-red-500',
-    welcomeText: "How far my creator! 👋 I am Vixora, your Ultimate AI Studio Assistant, Video Producer, and Autonomous Software Engineer! I can cook complete viral videos, manage your GitHub repositories, build full websites and web apps straight into GitHub, modify Vixora repos, and run self-diagnostics to fix code issues automatically. What are we building or cooking today?",
+    welcomeText: "How far my creator! 👋 I am Vixora, your Ultimate AI Studio Assistant, Video Producer, and Autonomous Software Engineer! I can cook complete viral videos, build and deploy full websites & web apps live on Vercel, manage & modify your GitHub and Vixora repos, and run self-diagnostics to fix code issues automatically. What are we building, deploying, or cooking today?",
     suggestedPrompts: [
       {
-        title: 'Build Website on GitHub',
-        desc: 'Architect, code & commit a live web app',
-        prompt: 'Build a modern SaaS landing website for an AI Fitness Coach and push it to a new GitHub repo',
-        icon: 'fa-globe'
+        title: 'Build & Deploy on Vercel',
+        desc: 'Architect, code & launch live on Vercel',
+        prompt: 'Build a modern SaaS landing website for an AI Fitness Coach and deploy it live on Vercel',
+        icon: 'fa-rocket'
       },
       {
-        title: 'Manage & Edit GitHub Repos',
-        desc: 'List repos, inspect & upgrade code',
+        title: 'Manage & Deploy GitHub Repos',
+        desc: 'List repos, edit code or deploy to Vercel',
         prompt: 'List my GitHub repositories and show which ones are Vixora projects',
         icon: 'fa-code-branch'
       },
@@ -536,6 +536,8 @@ export const ChatCodingProgressCard: React.FC<{ progress: CodingProgressData }> 
       ? 'GitHub Repo Editor'
       : progress.mode === 'repo'
       ? 'GitHub Repo Manager'
+      : progress.mode === 'vercel'
+      ? 'Vercel Deploy Engine'
       : 'Full-Stack App Builder';
 
   return (
@@ -588,9 +590,11 @@ export const ChatCodingResultCard: React.FC<{
   result: CodingResultData;
   onQuickPrompt?: (prompt: string) => void;
 }> = ({ result, onQuickPrompt }) => {
-  const [activeView, setActiveView] = useState<'preview' | 'code' | 'repos'>(
+  const [activeView, setActiveView] = useState<'preview' | 'code' | 'repos' | 'vercel'>(
     result.previewHtml
       ? 'preview'
+      : result.vercelProjects && result.vercelProjects.length > 0
+      ? 'vercel'
       : result.repos && result.repos.length > 0 && result.kind === 'repos'
       ? 'repos'
       : 'code'
@@ -634,6 +638,19 @@ export const ChatCodingResultCard: React.FC<{
                   #{result.commitSha.slice(0, 7)}
                 </span>
               )}
+              {result.readyState && (
+                <span
+                  className={`px-1.5 py-0.2 rounded font-black uppercase ${
+                    result.readyState === 'READY'
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                      : result.readyState === 'ERROR' || result.readyState === 'CANCELED'
+                      ? 'bg-red-500/20 text-red-300 border border-red-500/30'
+                      : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                  }`}
+                >
+                  Vercel: {result.readyState}
+                </span>
+              )}
               {result.diagnostics && (
                 <span
                   className={`px-1.5 py-0.2 rounded font-black uppercase ${
@@ -649,7 +666,29 @@ export const ChatCodingResultCard: React.FC<{
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+          {result.liveUrl && (
+            <a
+              href={result.liveUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-2.5 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[9px] font-black uppercase tracking-wider flex items-center gap-1 shadow-md"
+            >
+              <i className="fa-solid fa-rocket"></i>
+              <span>Live Site</span>
+            </a>
+          )}
+          {result.inspectorUrl && (
+            <a
+              href={result.inspectorUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 border border-white/15 text-[9px] font-black uppercase tracking-wider flex items-center gap-1 text-white"
+            >
+              <i className="fa-solid fa-triangle-exclamation text-[8px] rotate-180"></i>
+              <span>Inspector</span>
+            </a>
+          )}
           {result.repoUrl && (
             <a
               href={result.repoUrl}
@@ -687,13 +726,13 @@ export const ChatCodingResultCard: React.FC<{
       </div>
 
       {/* View Switcher Tabs */}
-      {(result.previewHtml || files.length > 0 || (result.repos && result.repos.length > 0)) && (
-        <div className="px-3 pt-2 bg-slate-900/60 border-b border-white/10 flex items-center gap-2">
+      {(result.previewHtml || files.length > 0 || (result.repos && result.repos.length > 0) || (result.vercelProjects && result.vercelProjects.length > 0)) && (
+        <div className="px-3 pt-2 bg-slate-900/60 border-b border-white/10 flex items-center gap-2 overflow-x-auto scrollbar-none">
           {result.previewHtml && (
             <button
               type="button"
               onClick={() => setActiveView('preview')}
-              className={`px-3 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-t-lg border-b-2 transition-all cursor-pointer ${
+              className={`px-3 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-t-lg border-b-2 transition-all cursor-pointer shrink-0 ${
                 activeView === 'preview'
                   ? 'border-cyan-400 text-cyan-300 bg-white/5'
                   : 'border-transparent text-slate-400 hover:text-white'
@@ -706,7 +745,7 @@ export const ChatCodingResultCard: React.FC<{
             <button
               type="button"
               onClick={() => setActiveView('code')}
-              className={`px-3 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-t-lg border-b-2 transition-all cursor-pointer ${
+              className={`px-3 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-t-lg border-b-2 transition-all cursor-pointer shrink-0 ${
                 activeView === 'code'
                   ? 'border-cyan-400 text-cyan-300 bg-white/5'
                   : 'border-transparent text-slate-400 hover:text-white'
@@ -719,13 +758,26 @@ export const ChatCodingResultCard: React.FC<{
             <button
               type="button"
               onClick={() => setActiveView('repos')}
-              className={`px-3 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-t-lg border-b-2 transition-all cursor-pointer ${
+              className={`px-3 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-t-lg border-b-2 transition-all cursor-pointer shrink-0 ${
                 activeView === 'repos'
                   ? 'border-cyan-400 text-cyan-300 bg-white/5'
                   : 'border-transparent text-slate-400 hover:text-white'
               }`}
             >
               <i className="fa-brands fa-github mr-1.5"></i>Repositories ({result.repos.length})
+            </button>
+          )}
+          {result.vercelProjects && result.vercelProjects.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setActiveView('vercel')}
+              className={`px-3 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-t-lg border-b-2 transition-all cursor-pointer shrink-0 ${
+                activeView === 'vercel'
+                  ? 'border-emerald-400 text-emerald-300 bg-white/5'
+                  : 'border-transparent text-slate-400 hover:text-white'
+              }`}
+            >
+              <i className="fa-solid fa-rocket mr-1.5"></i>Vercel Projects ({result.vercelProjects.length})
             </button>
           )}
         </div>
@@ -851,7 +903,68 @@ export const ChatCodingResultCard: React.FC<{
                   >
                     {repo.is_vixora_repo ? 'Sync Vixora' : 'Modify'}
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => onQuickPrompt(`Deploy GitHub repo ${repo.full_name} to Vercel`)}
+                    className="px-2 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-[9px] font-bold text-emerald-300 cursor-pointer"
+                  >
+                    Deploy Vercel
+                  </button>
                 </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Vercel Projects List */}
+      {activeView === 'vercel' && result.vercelProjects && result.vercelProjects.length > 0 && (
+        <div className="p-3 space-y-1.5 max-h-72 overflow-y-auto bg-slate-950">
+          {result.vercelProjects.map(proj => (
+            <div
+              key={proj.id}
+              className="p-2.5 rounded-xl bg-white/[0.03] border border-white/10 flex flex-wrap items-center justify-between gap-2"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[11px] font-bold text-white truncate">{proj.name}</span>
+                  {proj.framework && (
+                    <span className="px-1.5 py-0.2 rounded text-[8px] font-bold uppercase bg-white/10 text-slate-300">
+                      {proj.framework}
+                    </span>
+                  )}
+                  {proj.readyState && (
+                    <span
+                      className={`px-1.5 py-0.2 rounded text-[8px] font-black uppercase ${
+                        proj.readyState === 'READY'
+                          ? 'bg-emerald-500/20 text-emerald-300'
+                          : 'bg-amber-500/20 text-amber-300'
+                      }`}
+                    >
+                      {proj.readyState}
+                    </span>
+                  )}
+                </div>
+                {proj.latestUrl && (
+                  <a
+                    href={proj.latestUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[9.5px] text-emerald-400 hover:underline truncate block mt-0.5"
+                  >
+                    {proj.latestUrl}
+                  </a>
+                )}
+              </div>
+              {proj.latestUrl && (
+                <a
+                  href={proj.latestUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-[9px] font-bold text-emerald-300 shrink-0"
+                >
+                  Open Live
+                </a>
               )}
             </div>
           ))}
@@ -964,11 +1077,34 @@ export const VixoraTextChatPanel: React.FC<VixoraTextChatPanelProps> = ({
   const [githubConnectError, setGithubConnectError] = useState<string | null>(null);
   const [isGitHubLoading, setIsGitHubLoading] = useState(false);
 
+  // Vercel Secret Status (read-only status from server secret VERCEL_TOKEN)
+  const [vercelStatus, setVercelStatus] = useState<{
+    configured: boolean;
+    connected: boolean;
+    username?: string;
+    error?: string;
+  }>({ configured: false, connected: false });
+
   const imageInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
+
+  const refreshVercelStatus = async () => {
+    try {
+      const res = await fetch('/api/vercel/status');
+      const data = await res.json();
+      setVercelStatus({
+        configured: !!data.configured,
+        connected: !!data.connected,
+        username: data.user?.username || data.user?.name,
+        error: data.error
+      });
+    } catch {
+      setVercelStatus({ configured: false, connected: false });
+    }
+  };
 
   const refreshGitHubStatus = async () => {
     try {
@@ -1045,6 +1181,7 @@ export const VixoraTextChatPanel: React.FC<VixoraTextChatPanelProps> = ({
 
   useEffect(() => {
     refreshGitHubStatus();
+    refreshVercelStatus();
   }, []);
 
   // Sync sessions to localStorage
@@ -1346,12 +1483,14 @@ export const VixoraTextChatPanel: React.FC<VixoraTextChatPanelProps> = ({
 
 YOUR MANDATE & TOOLS:
 1. VIDEO PRODUCTION & STUDIO CONTROL: Use configureAndCreateAutopilotVideo, navigateToTab, changeVoiceoverSettings, changeCaptionStyle, editVideoScript, generateFlyerImage, setVideoPreferences, changeMusicSettings, directVideoMotionGraphics.
-2. GITHUB CODING & REPOSITORY ENGINEERING:
+2. GITHUB, VERCEL DEPLOYMENT & REPOSITORY ENGINEERING:
    - Use manageGitHubRepositories to check connection status, list the user's GitHub repos (including Vixora repos), inspect file trees, read code files, or create new repos.
    - Use buildWebsiteOrAppOnGitHub whenever the user wants you to create/build a website, landing page, web app, dashboard, portfolio, or e-commerce app using GitHub (it generates complete code, commits to GitHub, enables Pages, and shows a live interactive preview right in chat).
+   - Use deployToVercel whenever the user asks to deploy a website, web app, GitHub repository, or Vixora Studio live to Vercel (uses the VERCEL_TOKEN secret configured on the server; supports building a brand-new site + deploying to Vercel, deploying an existing GitHub repo to Vercel, listing Vercel projects, or checking deployment status).
    - Use modifyGitHubRepository whenever the user asks to edit, fix, upgrade, or modify code in any existing GitHub repository (including Vixora repos).
    - Use selfDiagnoseAndUpdateVixora whenever the user asks Vixora to check itself for bugs/problems, self-update/self-heal its own source code, or sync the Vixora codebase to a GitHub repo.
-Current GitHub status: ${githubStatus.connected || connectedViaInlinePat ? `Connected${githubStatus.login ? ` as @${githubStatus.login}` : ''}` : 'Not connected yet'}.`;
+Current GitHub status: ${githubStatus.connected || connectedViaInlinePat ? `Connected${githubStatus.login ? ` as @${githubStatus.login}` : ''}` : 'Not connected yet'}.
+Current Vercel secret status: ${vercelStatus.connected ? `Ready (@${vercelStatus.username})` : vercelStatus.configured ? 'Secret set (check auth)' : 'VERCEL_TOKEN secret not set yet'}.`;
       } else if (activeAgent.id === 'video_director') {
         systemInstruction = `You are the 'Viral Video Director' agent inside Vixora Studio. You are an elite cinematic Short-form video director (TikTok, Reels, YouTube Shorts).
 Your focus is visual storytelling, camera angles, lighting, scene duration, B-roll queries for stock engines, and 3-second visual retention hooks.
@@ -2786,8 +2925,45 @@ You advise creators on voice selection (Kore Nigerian accent, Ngozi, Chidinma, A
                 )}
               </div>
 
+              {/* Vercel Secret Status Banner (Read-Only from Server Secrets) */}
+              <div className="p-3.5 rounded-2xl border border-emerald-500/25 bg-slate-950/60 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-black border border-white/20 text-white flex items-center justify-center text-xs shrink-0">
+                    ▲
+                  </div>
+                  <div>
+                    <p className="text-xs font-black uppercase text-white flex items-center gap-2">
+                      <span>Vercel Deployment Engine</span>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[8.5px] font-black uppercase ${
+                          vercelStatus.connected
+                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                            : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                        }`}
+                      >
+                        {vercelStatus.connected
+                          ? `Ready (@${vercelStatus.username})`
+                          : 'Needs VERCEL_TOKEN Secret'}
+                      </span>
+                    </p>
+                    <p className="text-[10.5px] text-slate-400">
+                      {vercelStatus.connected
+                        ? 'Authenticated via server-side VERCEL_TOKEN secret — ask Vixora to deploy any site or repo!'
+                        : 'Add VERCEL_TOKEN to your project Secrets so Vixora can deploy apps & websites directly to Vercel.'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={refreshVercelStatus}
+                  className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-[9.5px] font-black uppercase tracking-wider text-slate-200 cursor-pointer"
+                >
+                  Check Secret
+                </button>
+              </div>
+
               {/* Autonomous Engineering Quick Actions */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                 <button
                   type="button"
                   onClick={() => {
@@ -2802,8 +2978,27 @@ You advise creators on voice selection (Kore Nigerian accent, Ngozi, Chidinma, A
                     <i className="fa-solid fa-screwdriver-wrench"></i>
                   </div>
                   <div>
-                    <p className="text-xs font-black uppercase text-white">Self-Diagnose &amp; Fix Vixora</p>
-                    <p className="text-[10px] text-slate-300">Run tsc check &amp; auto-patch issues safely</p>
+                    <p className="text-xs font-black uppercase text-white">Self-Diagnose Vixora</p>
+                    <p className="text-[10px] text-slate-300">Run tsc check &amp; auto-patch</p>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsGitHubModalOpen(false);
+                    setInputQuery(
+                      'Build a modern, responsive web app / website for [describe your idea] and deploy it live on Vercel'
+                    );
+                  }}
+                  className="p-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-left flex items-center gap-3 transition-all cursor-pointer"
+                >
+                  <div className="w-9 h-9 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center text-sm shrink-0">
+                    <i className="fa-solid fa-rocket"></i>
+                  </div>
+                  <div>
+                    <p className="text-xs font-black uppercase text-white">Deploy Site to Vercel</p>
+                    <p className="text-[10px] text-slate-300">Build website &amp; launch live URL</p>
                   </div>
                 </button>
 
@@ -2821,8 +3016,8 @@ You advise creators on voice selection (Kore Nigerian accent, Ngozi, Chidinma, A
                     <i className="fa-solid fa-laptop-code"></i>
                   </div>
                   <div>
-                    <p className="text-xs font-black uppercase text-white">Build Website / App on GitHub</p>
-                    <p className="text-[10px] text-slate-300">Generate code, push repo &amp; preview live</p>
+                    <p className="text-xs font-black uppercase text-white">Build on GitHub</p>
+                    <p className="text-[10px] text-slate-300">Generate code, push repo &amp; preview</p>
                   </div>
                 </button>
               </div>
@@ -2834,7 +3029,7 @@ You advise creators on voice selection (Kore Nigerian accent, Ngozi, Chidinma, A
                     <h4 className="text-xs font-black uppercase tracking-wider text-slate-300">
                       Your GitHub Repositories ({githubReposList.length})
                     </h4>
-                    <span className="text-[10px] text-slate-400">Select a repo to inspect, modify, or sync</span>
+                    <span className="text-[10px] text-slate-400">Select a repo to inspect, modify, or deploy</span>
                   </div>
 
                   {isGitHubLoading && githubReposList.length === 0 ? (
@@ -2876,7 +3071,7 @@ You advise creators on voice selection (Kore Nigerian accent, Ngozi, Chidinma, A
                               <p className="text-[10px] text-slate-400 truncate mt-0.5">{repo.description}</p>
                             )}
                           </div>
-                          <div className="flex items-center gap-1.5 shrink-0">
+                          <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
                             <button
                               type="button"
                               onClick={() => {
@@ -2896,6 +3091,16 @@ You advise creators on voice selection (Kore Nigerian accent, Ngozi, Chidinma, A
                               className="px-2.5 py-1 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-[10px] font-bold text-cyan-300 cursor-pointer"
                             >
                               Modify
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsGitHubModalOpen(false);
+                                handleSendMessage(`Deploy GitHub repo ${repo.full_name} to Vercel`);
+                              }}
+                              className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-[10px] font-bold text-emerald-300 cursor-pointer"
+                            >
+                              Vercel
                             </button>
                             {repo.is_vixora_repo && (
                               <button
